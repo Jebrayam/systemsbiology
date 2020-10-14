@@ -1,1 +1,1 @@
-
+In this folder are every function implemented for the project. Here, it is possible to download and run each function individually. Each function has its own brief explanation and commend related to the implementation. 
