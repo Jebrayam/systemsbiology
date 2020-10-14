@@ -27,3 +27,14 @@ The **Def** tap refers to the *Define* section. In this section it is possible t
 ### Main Elements - Define Section 
 ![def](https://user-images.githubusercontent.com/57733110/96006984-ab814a80-0e03-11eb-95de-3a3c8ff3311d.png)
 
+### Simulate Section
+![sim](https://user-images.githubusercontent.com/57733110/96008002-b4bee700-0e04-11eb-9cdd-a4f9126425e4.png)
+
+### Infer Section
+![inf](https://user-images.githubusercontent.com/57733110/96008182-e768df80-0e04-11eb-8226-1f159ee523d6.png)
+
+
+
+
+
+
