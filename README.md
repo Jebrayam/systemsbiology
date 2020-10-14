@@ -2,6 +2,9 @@
 This project was developed in order to help people interested in learn about modeling of gene expression in cell populations. GenExpSim is an informatic tool (desktop application)
 created to learn or teach some topics about Systems Biology (Gene Expression). 
 
+## Introduction
+Gene expression is a dynamical process through which information encoded in gens is used to  synthesize a genomic product. This product usually is showed as a protein and it is the outcome from a series of biochemical reactions that take place stochastically in a specific biological system. Stochasticity in gen expression affects mainly transcription and translation processes, and it is responsible for the expression levels of a protein differ among a population of genetically identical cells.
+
 ## Software Requirements
 The tool is programmed in Python 3.7.4. One of the reasons why it's based on that programming 
 language is to make sure that anyone could get access to the tool and if it is the case one could modify or improve it. 
@@ -21,7 +24,7 @@ To run the tool properly, it is necessary to have installed the following Python
 - "GUI" folder contains every file needed to run the tool (application). Make sure each of them are in the same path.
 
 ## GUI Overview
-The *GenExpSim* tool have four main elements: 1) Data input window, 2) System properties window, 3) Command buttons, and 4) System output graphs. The *Data input window* conatains three different sections. Each of these section is meant to execute different function in the tool and each of them depends on the previous section to be executed correctly.
+The *GenExpSim* tool has four main elements: 1) Data input window, 2) System properties window, 3) Command buttons, and 4) System output graphs. The *Data input window* conatains three different sections. Each of these section is meant to execute different functionalities in the tool and each of them depends on the previous section to be executed correctly.
 
 - The **Def** tap refers to the *Define* section. In this section it is possible to define the main properties relate to the biological system. When this section it executed, it shows the differential equations system determined from the data entered by the user and enable the next section.  
 - The **Sim** tap refers to the *Simulate* section. There, the user can set and define some simulation settings. The settings include the duration of the experiment, inicial concentration values, number of cell, system input configuration, and define parameters relate to the variability of the output system. When the simulation process finishes, automatically the tool plots the output system. By default it plots firts the last molecular species registered in the previous section, but it is possible to cheange the species to be plotted and it is necessary one can plot several species at the same time.
