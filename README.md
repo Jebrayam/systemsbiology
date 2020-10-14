@@ -21,3 +21,4 @@ To run the tool properly, it is necessary to have installed the following Python
 - "GUI" folder contains every file needed to run the tool (application). Make sure each of them are in the same path.
 
 ## GUI Overview
+The *GenExpSim* tool have four main elements: 1) Information input window, 2) System properties window, 3) Command buttons, and 4) System output graphs.
