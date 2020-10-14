@@ -20,7 +20,7 @@ To run the tool properly, it is necessary to have installed the following Python
 - cython
 - matplotlib
 
-## Folder Description
+## Folders Description
 - "Single_Units" folder contains all the algorithms and scripts implemented for each unit. One single unit in this folder can run by itself. The only requirement it is needed is to have the file *simsysbio.py* in the same directory path. In this folder are the functions created and used in this project. Also, a brief explanation about how every script works is given.
 - "GUI" folder contains every file needed to run the tool (application). Make sure each of them are in the same path.
 
