@@ -22,3 +22,8 @@ To run the tool properly, it is necessary to have installed the following Python
 
 ## GUI Overview
 The *GenExpSim* tool have four main elements: 1) Information input window, 2) System properties window, 3) Command buttons, and 4) System output graphs.
+The **Def** tap refers to the *Define* section. In this section it is possible to define the main properties relate to the biological system to be simulated.
+
+![def](https://user-images.githubusercontent.com/57733110/96006984-ab814a80-0e03-11eb-95de-3a3c8ff3311d.png)
+
+
