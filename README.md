@@ -16,13 +16,16 @@ To run the tool properly, it is necessary to have installed the following Python
 - cython
 - matplotlib
 
-## Files Description
+## Folder Description
 - "Single_Units" folder contains all the algorithms and scripts implemented for each unit. One single unit in this folder can run by itself. The only requirement it is needed is to have the file *simsysbio.py* in the same directory path. In this folder are the functions created and used in this project. Also, a brief explanation about how every script works is given.
 - "GUI" folder contains every file needed to run the tool (application). Make sure each of them are in the same path.
 
 ## GUI Overview
-The *GenExpSim* tool have four main elements: 1) Information input window, 2) System properties window, 3) Command buttons, and 4) System output graphs.
-The **Def** tap refers to the *Define* section. In this section it is possible to define the main properties relate to the biological system to be simulated. The **Sim** tap refers to the *Simulate* section. There, the user can set and define some simulation settings. The settings include the duration of the experiment, inicial concentration values, number of cell, system input configuration, and define parameters relate to the variability of the output system. The **Inf** tap refers to the *Infer* Section, which is meant to get the initial values and parameters used to stimate the system output.
+The *GenExpSim* tool have four main elements: 1) Data input window, 2) System properties window, 3) Command buttons, and 4) System output graphs. The *Data input window* conatains three different sections. Each of these section is meant to execute different function in the tool and each of them depends on the previous section to be executed correctly.
+
+- The **Def** tap refers to the *Define* section. In this section it is possible to define the main properties relate to the biological system. When this section it executed, it shows the differential equations system determined from the data entered by the user and enable the next section.  
+- The **Sim** tap refers to the *Simulate* section. There, the user can set and define some simulation settings. The settings include the duration of the experiment, inicial concentration values, number of cell, system input configuration, and define parameters relate to the variability of the output system. When the simulation process finishes, automatically the tool plots the output system. By default it plots firts the last molecular species registered in the previous section, but it is possible to cheange the species to be plotted and it is necessary one can plot several species at the same time.
+- The **Inf** tap refers to the *Infer* Section, which is meant to get the initial values and parameters used to stimate the system output. The variables to be defined are the initial kinetic parameters, the noise parameters (a and b), the number of iterations to be performed, and the model used to run the infering process.
 
 ### Main Elements - Define Section 
 ![def](https://user-images.githubusercontent.com/57733110/96006984-ab814a80-0e03-11eb-95de-3a3c8ff3311d.png)
