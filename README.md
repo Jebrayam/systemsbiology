@@ -22,7 +22,7 @@ To run the tool properly, it is necessary to have installed the following Python
 
 ## GUI Overview
 The *GenExpSim* tool have four main elements: 1) Information input window, 2) System properties window, 3) Command buttons, and 4) System output graphs.
-The **Def** tap refers to the *Define* section. In this section it is possible to define the main properties relate to the biological system to be simulated.
+The **Def** tap refers to the *Define* section. In this section it is possible to define the main properties relate to the biological system to be simulated. The **Sim** tap refers to the *Simulate* section. There, the user can set and define some simulation settings. The settings include the duration of the experiment, inicial concentration values, number of cell, system input configuration, and define parameters relate to the variability of the output system. The **Inf** tap refers to the *Infer* Section, which is meant to get the initial values and parameters used to stimate the system output.
 
 ### Main Elements - Define Section 
 ![def](https://user-images.githubusercontent.com/57733110/96006984-ab814a80-0e03-11eb-95de-3a3c8ff3311d.png)
