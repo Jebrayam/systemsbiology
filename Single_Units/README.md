@@ -8,4 +8,6 @@ The implemented functions for this project are the next:
 
 - **HOGexpr**. This function computes the system input. The output of this function are three signals or profiles. Step signal(Valve), delay step signal (chamber), and model signal (hog). Model signal is based on a osmorregulation process in yeast. This process has its own kinetic parameters, however these can be change to model other processes.
 
-- **solveODE**. Computes the differential equations system. It takes as input the outcome from the *simbODE* function.
+- **solveODE**. Computes the system of differential equations deterministically. It takes as input the outcome from the *simbODE* function.
+
+- **gillAL**. Computes the biological system stochastically. The output is calculated numerically using the Gillespie's algorithm. 
