@@ -11,3 +11,5 @@ The implemented functions for this project are the next:
 - **solveODE**. Computes the system of differential equations deterministically. It takes as input the outcome from the *simbODE* function.
 
 - **gillAl**. Computes the biological system stochastically. The output is calculated numerically using the Gillespie's algorithm. 
+
+- **simbMoments**. This function works similar to *simbODE*. Determines simbolically a set of differential equations that describes the moments of the system. The implemented function finds upon the second order moment.
