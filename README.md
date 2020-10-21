@@ -1,4 +1,4 @@
-# Gene Expression Simulator (GenExpSim)
+# Gene Expression Simulator (GenExpSim) - (ONGOING)
 This project was developed in order to help people interested in learn about modeling of gene expression in cell populations. GenExpSim is an informatic tool (desktop application)
 created to learn or teach some topics about Systems Biology (Gene Expression). 
 
