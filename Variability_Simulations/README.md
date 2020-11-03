@@ -5,4 +5,4 @@ Each variability source is based on different assumptions.
 
 - **Intrinsic Variability**: This variability source comes from the stochasticity inside the cell as a result of the randomness in the reactions that take place and the instant of time when occur.
 
-- **Extrinsic Variability**: Represents all the fenotipic differences among a cell population as parameter distribution. So, that each cell has a unique set of parameters which are use to simulate its expression.
+- **Extrinsic Variability**: Represents all the fenotipic differences among a cell population as parameter distribution. So, that each cell has a unique set of parameters which are used to simulate its expression.
