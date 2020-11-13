@@ -4,18 +4,18 @@ Created on Fri Jul  3 09:45:58 2020
 
 @author: Bry
 
-Modulo con funciones para la simulación de la expresión genica en poblaciones
-celulares
+#module containing several functions created to simulate and modelate the gen
+expression of cell populations
 
-FUNCIONES:
-    1) HOGexpr: Calcula la expresión del hog como entrada del sistema.
+FUNCTIONS:
+    1) HOGexpr: computes the input system in pulses shape
     
     2) simbODE: Calculo simbolico de las ODEs que describen la respuesta del
         sistema.
         
     3) solveODE: Soluciona las expresiones simbolicas de las ODEs.
     
-    4) simGill: Calculo de las expresion estocastica de cada una de las 
+    4) gillAl: Calculo de las expresion estocastica de cada una de las 
         especies de forma especifica para cada celula perteneciente a una
         población
         
@@ -37,12 +37,16 @@ FUNCIONES:
     
     9) kldmeasure: Calcula la medida kld a partir de las observaciones y las 
         simulaciones. Toma datos estadisticos de media y desvicación estandar.
+        
+    10) modelDefiner: creates a .py file that contains the differential equation
+        system.
+    
+    11) solveODEpy: uses the .py function created by modelDefiner ans computes
+        its numerical deterministic solution of the differential equation system.
 """
 
-#librerias
+#libraries required in this module
 import numpy as np
-#import symengine as sym
-#https://github.com/symengine/symengine.py
 import sympy as sym
 from scipy.integrate import odeint
 #import C_Gill as cg
@@ -394,10 +398,8 @@ def simbODE(species, reactants, products, pars, inputN=None, indexU=1):
 ############################    solveODE   #############################################
 #Entradas: valores de los parametros, Entradas(ODEs, nombreVariales, inpU, time,
     #condiciones iniciales)
-
 def solveODE(Vpars, inputs):
-    
-    #nombre de las variables parametros
+    #parameters names
     namePars = inputs["pars"]
     
     #ODEs simbolicas
@@ -428,20 +430,20 @@ def solveODE(Vpars, inputs):
         return evalue
     #end modelODE
     
-    #nombre de las variables
+    #variable names
     nameVar = inputs["nameVar"]   
     exp = sym.lambdify([nameVar], odePars, "numpy")
     
-    #condiciones iniciales de las especies
+    #initial concentrations
     sp0 = inputs["species0"]
     
-    #vector de tiempo
+    #time vector
     tog = inputs["Vtime"]
     
-    #entrada del sistema
+    #input system
     hog = inputs["inpU"]
     
-    #arreglo para almacenar la solución
+    #array to store solution
     valuesSp = np.zeros((len(sp0), len(tog)))
     
     #registra condiciones iniciales
@@ -894,28 +896,25 @@ def MLLmeasure(Observaciones, fSim, hSim):
     MLL = MLL1 + MLL2
     return MLL
 
-################################################################
+###############################################################################
     
-#################   solve2Moment ###############################
-#Entradas: parametros cineticos, parametors de ruido, regressor con 
-    #(ODEs, nombreVariales, inpU, time, condiciones iniciales)
-    
+#################   solve2Moment ##############################################
+#Inputs: kinetic parameters, noise parameters, regressors (ODEs, variable names,
+    #input stimulus, time vectos, initial conditions
 def solve2Moment(parsValues, errV, regressor2):
-    #calcula los momentos crudos del sistema
+    #computes raw moments
     moments = solveODE(parsValues, regressor2)
-    
-    #calculo de los momentos del sistema
-    #parametros de ruido de la medicion
+
+    #noise parameters
     a = errV[0]
     b = errV[1]
     
-    #toma como 1rt momento la salida con respecto a la especie p. 
-    #equivale a la respuesta media del sistema
+    #takes first moment corresponding to the output mean
     regressorPre = regressor2["regressor"]
     MBmean = moments[len(regressorPre["species"]) - 1] #1st moment
     
     MBvar = moments[regressor2["idx2M"]] - MBmean**2 #varianza 2nd raw moment
-    #sd2M = np.sqrt(MBvar) #desviación estandar 2nd raw moment
+    #sd2M = np.sqrt(MBvar) #standard deviation 2nd raw moment
     MBsd_noisy = np.sqrt((1 + b**2)*MBvar + (a + b*MBmean)**2) #desviación estandar
     #del segundo momento de la respuesta
     
@@ -934,3 +933,86 @@ def kldmeasure(CMEmean, CMEsd, meanMC2, sdMC2):
     kld = np.log(sdMC2/CMEsd) + ((CMEsd**2) + (CMEmean - meanMC2)**2)/(2*sdMC2**2) - 1/2
     #regresa un vector con la medida de KLD para cada instante de tiempo
     return kld
+
+###############################################################################
+    
+##################### modelDefiner ############################################
+#creates a .py file from the input data. This file contains the
+#differential equations system. modelDefiner takes as input the sympy objects
+    #corresponding to the species, differential equations and kinectic paramers
+    #names
+def modelDefiner(species, odeX, pars):
+    #creates differential equations in string format
+    dtVar = ['d' + str(i) for i in species]
+    dtODE = [dtVar[i] + ' = ' + str(odeX[i]) for i in range(len(odeX))]
+    var0 = [str(species[i]) + ' = z[' + str(i) + ']' for i in range(len(species))]
+    dtPars = [str(pars[i]) + ' = vPars[' + str(i) + ']' for i in range(len(pars))]
+    
+    strVar = ', '.join(dtVar)
+    ########################################################
+    #creates model
+    fname = 'modelFunction.py'
+    
+    #funcion head
+    fStart = """#function created to solve the system of differential equations \ndef ODEmodel(z,t,hog,vPars): \n    u = hog"""
+
+    #function end
+    fEnd = '\n\n    return [' + strVar + ']'
+    
+    #creates .py file that contains the ODE function of the system
+    with open(fname, 'w+') as f:
+        #creates head of the function definition
+        f.write(fStart)
+        #adds parameters
+        for i in range(len(dtPars)):
+            f.write('\n    ' + dtPars[i])
+        f.write('\n')
+        #adds initial conditions
+        for i in range(len(var0)):
+            f.write('\n    ' + var0[i])
+        f.write('\n')
+        #adds differential equations
+        for i in range(len(dtODE)):
+            f.write('\n    ' + dtODE[i])
+        #creates function return
+        f.write(fEnd)
+    
+    #imports model as a global object
+    import modelFunction
+    global modelFunction
+##############################################################################
+    
+######################### solveODEpy ##########################################
+#input: parameters values, regressors(initial concentrations, time vector,
+    #input stimulus)
+def solveODEpy(Vpars, inputs):
+    #initial concentrations
+    sp0 = inputs["species0"]
+    
+    #time vector
+    tog = inputs["Vtime"]
+    
+    #system input
+    hog = inputs["inpU"]
+    
+    #array to store solution
+    valuesSp = np.zeros((len(sp0), len(tog)))
+    
+    #apppends initial concentrations
+    valuesSp[:,0] = sp0
+    
+    #solves differential equations system
+    for t in range(1, int(tog[-1]) + 1):
+        #time interval
+        tspan = np.array([tog[t-1], tog[t]])
+        
+        #computes solution in each time interval
+        z = odeint(modelFunction.ODEmodel,sp0,tspan,args=(hog[t],Vpars))
+        
+        #stores computed values
+        valuesSp[:,t] = z[1,:]
+        
+        #initial concentration for next time interval
+        sp0 = z[1]
+    #end for t
+    return valuesSp
