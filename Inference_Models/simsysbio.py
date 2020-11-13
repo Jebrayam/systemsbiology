@@ -1016,3 +1016,87 @@ def solveODEpy(Vpars, inputs):
         sp0 = z[1]
     #end for t
     return valuesSp
+
+################################################################################
+def model2MDefiner(species, odeX, pars):
+    #creates differential equations in string format
+    dtVar = ['d' + str(i) for i in species]
+    dtODE = [dtVar[i] + ' = ' + str(odeX[i]) for i in range(len(odeX))]
+    var0 = [str(species[i]) + ' = z[' + str(i) + ']' for i in range(len(species))]
+    dtPars = [str(pars[i]) + ' = vPars[' + str(i) + ']' for i in range(len(pars))]
+    
+    strVar = ', '.join(dtVar)
+    ########################################################
+    #creates model
+    fname = 'model2moment.py'
+    
+    #funcion head
+    fStart = """#function created to solve the system of differential equations \ndef ODEmodel(z,t,hog,vPars): \n    u = hog"""
+    
+    #function end
+    fEnd = '\n\n    return [' + strVar + ']'
+    
+    #creates .py file that contains the ODE function of the system
+    with open(fname, 'w+') as f:
+        #creates head of the function definition
+        f.write(fStart)
+        #adds parameters
+        for i in range(len(dtPars)):
+            f.write('\n    ' + dtPars[i])
+        f.write('\n')
+        #adds initial conditions
+        for i in range(len(var0)):
+            f.write('\n    ' + var0[i])
+        f.write('\n')
+        #adds differential equations
+        for i in range(len(dtODE)):
+            f.write('\n    ' + dtODE[i])
+        #creates function return
+        f.write(fEnd)
+    
+    import model2moment
+    global model2moment
+######################################################################
+def solve2MODEpy(Vpars, inputs):
+    #initial concentrations
+    sp0 = inputs["species0"]
+    
+    #time vector
+    tog = inputs["Vtime"]
+    
+    #system input
+    hog = inputs["inpU"]
+    
+    #array to store solution
+    valuesSp = np.zeros((len(sp0), len(tog)))
+    
+    #apppends initial concentrations
+    valuesSp[:,0] = sp0
+    
+    #solves differential equations system
+    for t in range(1, int(tog[-1]) + 1):
+        #time interval
+        tspan = np.array([tog[t-1], tog[t]])
+        
+        #computes solution in each time interval
+        z = odeint(model2moment.ODEmodel,sp0,tspan,args=(hog[t],Vpars))
+        
+        #stores computed values
+        valuesSp[:,t] = z[1,:]
+        
+        #initial concentration for next time interval
+        sp0 = z[1]
+    #end for t
+    return valuesSp
+
+#############################################################3
+def solve2M(pars, noiseP, regressor):
+    a = noiseP[0]
+    b = noiseP[1]
+    
+    moments = solve2MODEpy(pars, regressor)
+    
+    uM = moments[1,:]
+    sgM = np.sqrt(moments[4,:] - moments[1,:]**2)
+    sgMn = np.sqrt((1 + b**2)*(sgM**2) + (a + b*uM)**2)
+    return uM, sgMn
