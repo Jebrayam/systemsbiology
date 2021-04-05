@@ -1,4 +1,4 @@
-# Gene Expression Simulator (GenExpSim) - (Ongoing)
+# Systems Biology Simulator (SysBioSim)
 This project was developed in order to help people interested in learn about modeling of gene expression in cell populations. GenExpSim is an informatic tool (desktop application)
 created to learn or teach some topics about Systems Biology (Gene Expression). 
 
@@ -17,8 +17,10 @@ To run the tool properly, it is necessary to have installed the following Python
 - numpy
 - scipy
 - sympy
-- cython
+- cython (C compiler)
 - matplotlib
+- numba
+- cma
 
 ## Folders Description
 - "GUI" folder contains every file needed to run the tool (application). Make sure each of them are in the same path.
