@@ -23,12 +23,14 @@ To run the tool properly, it is necessary to have installed the following Python
 - cma
 
 ## Folders Description
-- "GUI" folder contains every file needed to run the tool (application). Make sure each of them are in the same path.
+- **GUI** folder contains every file needed to run the tool (application). Make sure each of them are in the same path.
 
-- "Single_Units" folder contains all the algorithms and scripts implemented for each unit. One single unit in this folder can run by itself. The only requirement it is needed is to have the file *simsysbio.py* in the same directory path. In this folder are the functions created and used in this project. Also, a brief explanation about how every script works is given.
+- **Single_Units** folder contains all the algorithms and scripts implemented for each unit. One single unit in this folder can run by itself. The only requirement it is needed is to have the file *simsysbio.py* in the same directory path. In this folder are the functions created and used in this project. Also, a brief explanation about how every script works is given.
+
+- **Variability_Simulations** folder contains jupyter notebook showing how every variability source was implemented during the development of the project. Moreover, it is showed how a population is created under specific conditions from a specific source. 
 
 ## GUI Overview
-The *GenExpSim* tool has four main elements: 1) Data input window, 2) System properties window, 3) Command buttons, and 4) System output graphs. The *Data input window* conatains three different sections. Each of these section is meant to execute different functionalities in the tool and each of them depends on the previous section to be executed correctly.
+The *SysBioSim* tool has four main elements: 1) Data input window, 2) System properties window, 3) Command buttons, and 4) System output graphs. The *Data input window* conatains three different sections. Each of these section is meant to execute different functionalities in the tool and each of them depends on the previous section to be executed correctly.
 
 - The **Def** tap refers to the *Define* section. In this section it is possible to define the main properties relate to the biological system. When this section it executed, it shows the differential equations system determined from the data entered by the user and enable the next section.  
 
