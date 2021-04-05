@@ -42,11 +42,10 @@ The *SysBioSim* tool has four main elements: 1) Data input window, 2) System pro
 ![Annotation 2021-03-28 220838](https://user-images.githubusercontent.com/57733110/113580593-94215e00-95eb-11eb-9189-f5ebdc7af574.png)
 
 ### Simulate Section
-![sim](https://user-images.githubusercontent.com/57733110/96326513-dbdd0a80-0ff6-11eb-8cf4-0d4abbe4c2cf.png)
+![simuSingle](https://user-images.githubusercontent.com/57733110/113580807-d9459000-95eb-11eb-8040-99738b9235ea.png)
 
 ### Infer Section
-![inf](https://user-images.githubusercontent.com/57733110/96326516-e13a5500-0ff6-11eb-9682-cbbbfbadf959.png)
-
+![infpar](https://user-images.githubusercontent.com/57733110/113580913-02feb700-95ec-11eb-969a-39891a9fb6ed.png)
 
 
 
