@@ -29,6 +29,8 @@ To run the tool properly, it is necessary to have installed the following Python
 
 - **Variability_Simulations** folder contains jupyter notebooks showing how every variability source was implemented during the development of the project. Moreover, it is showed how a population is created under specific conditions from a specific source. 
 
+- **Inference_Models** folder contains the three models implemented for inferreing parameters through the GUI. Those models are: Mean Cell, Moment based, and Two-Stage. Each model, it focus on inferring each type of variability, therefore it is possible to study the sources proposed from a specific model.
+
 ## GUI Overview
 The *SysBioSim* tool has four main elements: 1) Data input window, 2) System properties window, 3) Command buttons, and 4) System output graphs. The *Data input window* conatains three different sections. Each of these section is meant to execute different functionalities in the tool and each of them depends on the previous section to be executed correctly.
 
