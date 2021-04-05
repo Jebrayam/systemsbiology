@@ -39,7 +39,7 @@ The *SysBioSim* tool has four main elements: 1) Data input window, 2) System pro
 - The **Inf** tap refers to the *Infer* Section, which is meant to get the initial values and parameters used to stimate the system output. The variables to be defined are the initial kinetic parameters, the noise parameters (a and b), the number of iterations to be performed, and the model used to run the infering process.
 
 ### Main Elements - Define Section 
-![def](https://user-images.githubusercontent.com/57733110/96326504-c8ca3a80-0ff6-11eb-8a09-e2568b5728ea.png)
+![Annotation 2021-03-28 220838](https://user-images.githubusercontent.com/57733110/113580593-94215e00-95eb-11eb-9189-f5ebdc7af574.png)
 
 ### Simulate Section
 ![sim](https://user-images.githubusercontent.com/57733110/96326513-dbdd0a80-0ff6-11eb-8cf4-0d4abbe4c2cf.png)
