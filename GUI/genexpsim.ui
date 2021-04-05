@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>1354</width>
-    <height>570</height>
+    <height>605</height>
    </rect>
   </property>
   <property name="font">
@@ -21,7 +21,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>GenExpSim</string>
+   <string>SysBioSim</string>
   </property>
   <property name="autoFillBackground">
    <bool>false</bool>
@@ -153,7 +153,7 @@
        </font>
       </property>
       <property name="text">
-       <string>mrna, proteina </string>
+       <string>mrna, protein </string>
       </property>
       <property name="echoMode">
        <enum>QLineEdit::Normal</enum>
@@ -236,7 +236,7 @@
         <x>340</x>
         <y>110</y>
         <width>171</width>
-        <height>51</height>
+        <height>61</height>
        </rect>
       </property>
       <property name="font">
@@ -384,7 +384,7 @@ p, li { white-space: pre-wrap; }
         <x>340</x>
         <y>30</y>
         <width>171</width>
-        <height>51</height>
+        <height>61</height>
        </rect>
       </property>
       <property name="font">
@@ -749,7 +749,7 @@ p, li { white-space: pre-wrap; }
        <rect>
         <x>10</x>
         <y>120</y>
-        <width>81</width>
+        <width>101</width>
         <height>22</height>
        </rect>
       </property>
@@ -961,9 +961,9 @@ p, li { white-space: pre-wrap; }
      <widget class="QTextEdit" name="covMatrix">
       <property name="geometry">
        <rect>
-        <x>278</x>
+        <x>258</x>
         <y>190</y>
-        <width>121</width>
+        <width>141</width>
         <height>50</height>
        </rect>
       </property>
@@ -1052,7 +1052,7 @@ p, li { white-space: pre-wrap; }
      <widget class="QLabel" name="labelCov">
       <property name="geometry">
        <rect>
-        <x>198</x>
+        <x>178</x>
         <y>190</y>
         <width>81</width>
         <height>51</height>
@@ -1089,7 +1089,7 @@ p, li { white-space: pre-wrap; }
        <rect>
         <x>330</x>
         <y>35</y>
-        <width>151</width>
+        <width>161</width>
         <height>22</height>
        </rect>
       </property>
@@ -1108,6 +1108,11 @@ p, li { white-space: pre-wrap; }
       <item>
        <property name="text">
         <string>Moment Based</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Two-Stage</string>
        </property>
       </item>
       <item>
@@ -1145,8 +1150,8 @@ p, li { white-space: pre-wrap; }
      <widget class="QLabel" name="labelPar0">
       <property name="geometry">
        <rect>
-        <x>40</x>
-        <y>20</y>
+        <x>20</x>
+        <y>30</y>
         <width>131</width>
         <height>16</height>
        </rect>
@@ -1163,9 +1168,9 @@ p, li { white-space: pre-wrap; }
      <widget class="QLineEdit" name="pars0">
       <property name="geometry">
        <rect>
-        <x>40</x>
-        <y>40</y>
-        <width>131</width>
+        <x>20</x>
+        <y>50</y>
+        <width>171</width>
         <height>20</height>
        </rect>
       </property>
@@ -1186,8 +1191,8 @@ p, li { white-space: pre-wrap; }
      <widget class="QLabel" name="A0label">
       <property name="geometry">
        <rect>
-        <x>40</x>
-        <y>85</y>
+        <x>20</x>
+        <y>100</y>
         <width>16</width>
         <height>16</height>
        </rect>
@@ -1204,8 +1209,8 @@ p, li { white-space: pre-wrap; }
      <widget class="QDoubleSpinBox" name="A0Box">
       <property name="geometry">
        <rect>
-        <x>60</x>
-        <y>80</y>
+        <x>40</x>
+        <y>100</y>
         <width>71</width>
         <height>22</height>
        </rect>
@@ -1233,8 +1238,8 @@ p, li { white-space: pre-wrap; }
      <widget class="QLabel" name="B0label">
       <property name="geometry">
        <rect>
-        <x>40</x>
-        <y>115</y>
+        <x>20</x>
+        <y>130</y>
         <width>21</width>
         <height>16</height>
        </rect>
@@ -1251,8 +1256,8 @@ p, li { white-space: pre-wrap; }
      <widget class="QDoubleSpinBox" name="B0Box">
       <property name="geometry">
        <rect>
-        <x>60</x>
-        <y>110</y>
+        <x>40</x>
+        <y>130</y>
         <width>71</width>
         <height>22</height>
        </rect>
@@ -1274,14 +1279,14 @@ p, li { white-space: pre-wrap; }
        <double>1000.990000000000009</double>
       </property>
       <property name="value">
-       <double>0.010000000000000</double>
+       <double>0.100000000000000</double>
       </property>
      </widget>
      <widget class="QLabel" name="labeliter_2">
       <property name="geometry">
        <rect>
-        <x>270</x>
-        <y>83</y>
+        <x>255</x>
+        <y>103</y>
         <width>81</width>
         <height>16</height>
        </rect>
@@ -1292,7 +1297,7 @@ p, li { white-space: pre-wrap; }
        </font>
       </property>
       <property name="text">
-       <string>Iterations:</string>
+       <string>Iters:</string>
       </property>
       <property name="alignment">
        <set>Qt::AlignCenter</set>
@@ -1301,8 +1306,8 @@ p, li { white-space: pre-wrap; }
      <widget class="QSpinBox" name="iterBox">
       <property name="geometry">
        <rect>
-        <x>360</x>
-        <y>80</y>
+        <x>315</x>
+        <y>100</y>
         <width>61</width>
         <height>22</height>
        </rect>
@@ -1318,10 +1323,10 @@ p, li { white-space: pre-wrap; }
        <number>1</number>
       </property>
       <property name="maximum">
-       <number>1000</number>
+       <number>100000</number>
       </property>
       <property name="value">
-       <number>50</number>
+       <number>250</number>
       </property>
      </widget>
      <widget class="Line" name="line_4">
@@ -1330,12 +1335,164 @@ p, li { white-space: pre-wrap; }
         <x>210</x>
         <y>20</y>
         <width>20</width>
-        <height>111</height>
+        <height>151</height>
        </rect>
       </property>
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
+     </widget>
+     <widget class="QLabel" name="label_5">
+      <property name="geometry">
+       <rect>
+        <x>280</x>
+        <y>140</y>
+        <width>61</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>N° Cells:</string>
+      </property>
+     </widget>
+     <widget class="QSpinBox" name="sampleCells">
+      <property name="geometry">
+       <rect>
+        <x>340</x>
+        <y>135</y>
+        <width>61</width>
+        <height>22</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <weight>50</weight>
+        <bold>false</bold>
+       </font>
+      </property>
+      <property name="minimum">
+       <number>1</number>
+      </property>
+      <property name="maximum">
+       <number>1000000</number>
+      </property>
+      <property name="value">
+       <number>2</number>
+      </property>
+     </widget>
+     <widget class="QCheckBox" name="parAny">
+      <property name="geometry">
+       <rect>
+        <x>280</x>
+        <y>170</y>
+        <width>151</width>
+        <height>17</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Parameter Analysis</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_6">
+      <property name="geometry">
+       <rect>
+        <x>385</x>
+        <y>103</y>
+        <width>71</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Tol:</string>
+      </property>
+     </widget>
+     <widget class="QDoubleSpinBox" name="spinTolerance">
+      <property name="geometry">
+       <rect>
+        <x>410</x>
+        <y>100</y>
+        <width>81</width>
+        <height>22</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <weight>50</weight>
+        <bold>false</bold>
+       </font>
+      </property>
+      <property name="decimals">
+       <number>6</number>
+      </property>
+      <property name="maximum">
+       <double>1000000.000000000000000</double>
+      </property>
+      <property name="singleStep">
+       <double>0.000100000000000</double>
+      </property>
+      <property name="value">
+       <double>0.000100000000000</double>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_7">
+      <property name="geometry">
+       <rect>
+        <x>280</x>
+        <y>70</y>
+        <width>71</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>10</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>Algorithm:</string>
+      </property>
+     </widget>
+     <widget class="QComboBox" name="AlgoBox">
+      <property name="geometry">
+       <rect>
+        <x>353</x>
+        <y>68</y>
+        <width>121</width>
+        <height>22</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>9</pointsize>
+        <weight>50</weight>
+        <bold>false</bold>
+       </font>
+      </property>
+      <item>
+       <property name="text">
+        <string>Downhill Simplex</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>CMA-ES</string>
+       </property>
+      </item>
      </widget>
     </widget>
    </widget>
@@ -1470,8 +1627,8 @@ p, li { white-space: pre-wrap; }
    <widget class="QLabel" name="labeliter">
     <property name="geometry">
      <rect>
-      <x>20</x>
-      <y>542</y>
+      <x>10</x>
+      <y>550</y>
       <width>211</width>
       <height>21</height>
      </rect>
@@ -1560,6 +1717,21 @@ p, li { white-space: pre-wrap; }
      </widget>
      <zorder>graphPlot5</zorder>
      <zorder>graphPlot3</zorder>
+    </widget>
+    <widget class="QWidget" name="tab_4">
+     <attribute name="title">
+      <string>Parameters Chart</string>
+     </attribute>
+     <widget class="MplWidget" name="graphPlot6" native="true">
+      <property name="geometry">
+       <rect>
+        <x>-30</x>
+        <y>-30</y>
+        <width>891</width>
+        <height>541</height>
+       </rect>
+      </property>
+     </widget>
     </widget>
    </widget>
    <widget class="QTabWidget" name="tabWidget_2">
@@ -1683,7 +1855,7 @@ p, li { white-space: pre-wrap; }
      <rect>
       <x>20</x>
       <y>5</y>
-      <width>52</width>
+      <width>41</width>
       <height>39</height>
      </rect>
     </property>
@@ -1716,12 +1888,65 @@ p, li { white-space: pre-wrap; }
      </font>
     </property>
     <property name="text">
-     <string>Gene Expression Simulator</string>
+     <string>Systems Biology Simulator</string>
     </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
+   <widget class="QCheckBox" name="indPlotEnable">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>10</y>
+      <width>111</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Individual Plot</string>
+    </property>
+    <property name="checked">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="liveInfBox">
+    <property name="geometry">
+     <rect>
+      <x>670</x>
+      <y>10</y>
+      <width>111</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Live Inference</string>
+    </property>
+    <property name="checked">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <zorder>outODEs</zorder>
+   <zorder>identiButton</zorder>
+   <zorder>labelSis</zorder>
+   <zorder>tabsTool</zorder>
+   <zorder>cancelButton</zorder>
+   <zorder>simButton</zorder>
+   <zorder>optButton</zorder>
+   <zorder>changePlotButton</zorder>
+   <zorder>spPlotBox</zorder>
+   <zorder>labelRsys</zorder>
+   <zorder>labeliter</zorder>
+   <zorder>tabWidget_2</zorder>
+   <zorder>label</zorder>
+   <zorder>label_2</zorder>
+   <zorder>radioPlot2</zorder>
+   <zorder>spPlotBox2</zorder>
+   <zorder>label_3</zorder>
+   <zorder>label_4</zorder>
+   <zorder>indPlotEnable</zorder>
+   <zorder>tabWidget</zorder>
+   <zorder>liveInfBox</zorder>
   </widget>
  </widget>
  <customwidgets>

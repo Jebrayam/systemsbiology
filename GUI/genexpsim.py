@@ -4,28 +4,34 @@ Created on Fri Aug 14 07:45:55 2020
 
 @author: Bry
 """
-#import libraries used to programm GUI
+#imports libraries used to programm GUI
 import sys, re
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QDesktopWidget, QDialog
+import os
+import traceback
+from datetime import datetime
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QDesktopWidget, QDialog, QAction, QFileDialog, QInputDialog
 from PyQt5.QtGui import QIcon
 #package to load the .ui file
 from PyQt5 import uic
 #libraries for processing data
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.optimize import fmin
+import cma
 import sympy as sym
 import simsysbio as s2b
+import time 
 
-#build the dialog window used to define the input model
+#builds the dialog window used to define the input model
 class inputWindow(QDialog):
     def __init__(self):
         QDialog.__init__(self)
         uic.loadUi("inputWindow.ui", self)
         
-        #connect button  to define input model
+        #connects button  to define input model
         self.defineInputButton.clicked.connect(self.defineInput)
-        #validate information from inputs
+        #validates information from inputs
         self.inpModelSp.textChanged.connect(self.valiSInp)
         self.inpModelPar.textChanged.connect(self.valiPInp)
         self.inpModelR.textChanged.connect(self.valiRInp)
@@ -49,7 +55,16 @@ class inputWindow(QDialog):
             self.inpModelPar.setStyleSheet("border: 2px solid red;")
         else:
             self.inpModelPar.setStyleSheet("border: 2px solid green;")
-            
+        
+        try:
+            #takes parameter values
+            parStrInp = self.inpModelPar.text()
+            parStrInp = re.findall('[0-9.0-9]+', parStrInp)
+            valParInp = list(map(float, parStrInp))
+            self.inpReacBox.setRange(1, len(valParInp))
+        except:
+            pass
+    
     def valiRInp(self):
         val = re.match('^[0-1;\n, ]+$', self.inpModelR.toPlainText(), re.I)
         if self.inpModelR.toPlainText() == "":
@@ -68,33 +83,33 @@ class inputWindow(QDialog):
         else:
             self.inpModelP.setStyleSheet("border: 2px solid green;") 
     
-    #take data to define input model when "Define" is clicked
+    #takes data to define input model when "Define" is clicked
     def defineInput(self):
-        #take the name of the molecular species
+        #takes the name of the molecular species
         self.SpStrInp = self.inpModelSp.text()
         self.SpStrInp = self.SpStrInp.split(',')
         self.SpStrInp = [x.strip() for x in self.SpStrInp]
         
-        #take parameter values
+        #takes parameter values
         self.parStrInp = self.inpModelPar.text()
         self.parStrInp = re.findall('[0-9.0-9]+', self.parStrInp)
         
-        #take reagent matrix
+        #takes reagent matrix
         self.reacStrInp = self.inpModelR.toPlainText()
         self.reacStrInp = self.reacStrInp.split(';')
         self.reacStrInp = [x.split(',') for x in self.reacStrInp]
         
-        #take product matrix
+        #takes product matrix
         self.prodStrInp = self.inpModelP.toPlainText()
         self.prodStrInp = self.prodStrInp.split(';')
         self.prodStrInp = [x.split(',') for x in self.prodStrInp]
         
         try:
-            #convert parameters and get the name from each one
+            #converts parameters and get the name from each one
             self.valParInp = list(map(float, self.parStrInp))
             self.nparStrInp = [('k'+ str(i+1)) for i in range(len(self.parStrInp))]
             
-            #convert data from reagent matrix
+            #converts data from reagent matrix
             self.valReacInp = list()
             for i in self.reacStrInp:
                 self.valReacInp.append(list(map(int, i)))
@@ -121,10 +136,12 @@ class inputWindow(QDialog):
             #input model's name
             self.nameInp = 'U'
             
+            self.inpindex = self.inpReacBox.value()
+            
             #compute the simbolic expression of the input model
             self.ecuacionesInp, self.variablesInp = s2b.simbODE(self.SpStrInp,
                         self.valReacInp, self.valProdInp, self.nparStrInp, 
-                        inputN=self.nameInp)
+                        inputN=self.nameInp, indexU=self.inpindex)
             
             #replace the kinetic parameter values in the model
             self.namePars = self.variablesInp["pars"]
@@ -153,6 +170,8 @@ class inputWindow(QDialog):
                 
         except:
             _mainWindow.outODEs.append("\nError defining input model.")
+            message = traceback.format_exc()
+            self.msgBox(message)    
 
 #main window's constructor
 class mainWindow(QMainWindow):
@@ -168,21 +187,32 @@ class mainWindow(QMainWindow):
         self.plotSetting()
         #connect buttons to methods
         self.buttons()
+        #create window instance of the model input definition
+        self.inputModelW = inputWindow()
+        #create toolbar
+        self.Create_toolbar()
+        
         #initial state of some variables
         self.idxReaction = None
         #dictionary to save data that plays as regressor
         self.regressor = dict()
-        #create window instance of the model input definition
-        self.inputModelW = inputWindow()
         #disable inputs that depend on other options
         self.setButton.setEnabled(False)
         self.spinAval.setEnabled(False)
         self.spinBval.setEnabled(False)
         self.covMatrix.setEnabled(False)
         self.changePlotButton.setEnabled(False)
+        self.sampleCells.setEnabled(False)
         #initial state of the secondary species subplot
         self.subplotSP = False
-        
+        self.a_err = 0.0
+        self.b_err = 0.0
+        self.tempAxes = []
+        self.valTon = [0]
+        self.tOnStr = [0]
+        self.valTdur = [0]
+        self.tDurStr = [0]
+                
     def UIsetting(self):
         #set icon
         self.setWindowIcon(QIcon('icon.png'))  
@@ -195,6 +225,197 @@ class mainWindow(QMainWindow):
         cp = QDesktopWidget().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
+        
+    def Create_toolbar(self):
+        saveAct = QAction(QIcon('save.png'), 'Save', self)
+        saveAct.setShortcut('Ctrl+S')
+        saveAct.triggered.connect(self.saveData)
+        
+        openAct = QAction(QIcon('open.png'), 'Open', self)
+        openAct.setShortcut('Ctrl+O')
+        openAct.triggered.connect(self.openData)
+        
+        self.toolbar = self.addToolBar('Toolbar')
+        self.toolbar.addAction(saveAct)
+        self.toolbar.addAction(openAct)
+        
+    def saveData(self):
+        #show status
+        self.labeliter.setText("Saving Data...")
+        QApplication.processEvents()
+        
+        #get the path to the folder where data is stored
+        nowPath = os.getcwd() + '/data'
+        #create a folder to save data
+        try:
+            os.makedirs('data/')
+        except:
+            pass
+        
+        try:
+            #open window explorer to save data
+            name = QFileDialog.getSaveFileName(self, 'Save Data', nowPath, 
+                                               "Numpy File (*.npz)")
+            
+            #save data into a .npz file
+            np.savez_compressed(name[0], SpStr=self.SpStr,
+                     parStr=self.parStr,
+                     valReac=self.valReac,
+                     valProd=self.valProd,
+                     ecuaciones=list(map(str, self.ecuaciones)),
+                     vPars=np.array(self.valPar),
+                     idxR=self.idxReaction,
+                     species=list(map(str, self.variables['species'])),
+                     pars=list(map(str, self.variables['pars'])),
+                     nameVar=list(map(str, self.variables['nameVar'])),
+                     species0=np.array(self.valConcen),
+                     Vtime=self.expTime,
+                     inpU=self.inpShock,
+                     nCells=self.nCells,
+                     concenStr=self.concenStr,
+                     expTdur=self.expTdur,
+                     valTon=self.valTon,
+                     tOnStr=self.tOnStr,
+                     valTdur=self.valTdur,
+                     tDurStr=self.tDurStr,
+                     AllcellExpr=self.AllcellExpr,
+                     nparStr=self.nparStr,
+                     nameInp=self.nameInp,
+                     a_err=self.a_err,
+                     b_err=self.b_err)
+            
+            self.labeliter.setText("Data Saved!")
+            
+        except:
+            self.labeliter.setText("")
+            if not name[0] == '':
+                message = traceback.format_exc()
+                self.msgBox(message)
+        
+        print(name[0])
+        print('Data saved')
+        
+    def openData(self):
+        self.labeliter.setText("Loading Data...")
+        QApplication.processEvents()
+        
+        #get the path to the folder where data is stored
+        nowPath = os.getcwd() + '/data'
+        
+        try:
+            #open window explorer to find stored data
+            name = QFileDialog.getOpenFileName(self, 'Open Data', nowPath, 
+                                               "Numpy File (*.npz)")
+            
+            #load data from .npz file
+            npzfile = np.load(name[0])
+            
+            #get data saved
+            #shows data added for defining
+            self.SpStr = npzfile['SpStr'].tolist()
+            self.parStr = npzfile['parStr'].tolist()
+            self.valReac = npzfile['valReac']
+            self.valProd = npzfile['valProd']
+            self.ecuaciones = npzfile['ecuaciones'].tolist()
+            self.valPar = npzfile['vPars']
+            self.expTime = npzfile['Vtime']
+            self.inpShock = npzfile['inpU']
+            self.nCells = npzfile['nCells']
+            self.concenStr = npzfile['concenStr']
+            self.expTdur = npzfile['expTdur']
+            self.valTon = npzfile['valTon']
+            self.tOnStr = npzfile['tOnStr']
+            self.valTdur = npzfile['valTdur']
+            self.tDurStr = npzfile['tDurStr']
+            self.AllcellExpr = npzfile['AllcellExpr']
+            self.nparStr = npzfile['nparStr'].tolist()
+            self.nameInp = str(npzfile['nameInp'])
+            self.valConcen = npzfile['species0'].tolist()
+            self.a_err = npzfile['a_err']
+            self.b_err = npzfile['b_err']
+            
+            try:
+                self.idxReaction = npzfile['idxR']
+            except:
+                self.idxReaction = None
+                
+            #computes system without input
+            if self.idxReaction == None:
+                self.ecuaciones, self.variables = s2b.simbODE(self.SpStr,
+                    self.valReac, self.valProd,self.nparStr)
+                
+            #Computes system with input
+            else:
+                self.ecuaciones, self.variables = s2b.simbODE(self.SpStr,
+                    self.valReac, self.valProd, self.nparStr, 
+                    inputN=self.nameInp, indexU = self.idxReaction)
+            
+            #stores information used in simulation
+            self.regressor = {
+                    "ODEs": self.ecuaciones,
+                    "matrizR": self.valReac,
+                    "matrizP": self.valProd,
+                    "vPars": self.valPar,
+                    "idxR": self.idxReaction,
+                    "species0":npzfile['species0'],
+                    "Vtime":npzfile['Vtime'],
+                    "inpU":npzfile['inpU']
+                    }
+            
+            self.variables = {
+                    "species":npzfile['species'],
+                    "pars":npzfile['pars'],
+                    "nameVar":npzfile['nameVar']
+                    }
+            self.regressor.update(self.variables)
+            
+            ##### Identify loaded section ####
+            self.showInfo(self.SpStr, self.parStr, self.valReac, self.valProd, 
+                          self.ecuaciones)
+            
+            #creates .py file containig the differential equations system
+            s2b.modelDefiner(self.variables["species"], self.ecuaciones, 
+                             self.variables["pars"])
+            
+            #add items to change species plot
+            self.addItemsPlot()
+            
+            #### #simulate loaded section ####
+            self.sampleCells.setMaximum(self.nCells)
+            
+            #shows information for simulating
+            self.showInfosim(self.expTdur, self.concenStr, self.nCells)
+            
+            #stores simulated data
+            self.data = {
+                    "genExpr": self.AllcellExpr,
+                    "inPulse": self.inpShock,
+                    "vTime": self.expTime,
+                    }
+            
+            #plots system output
+            self.clearPlot()
+            self.idxPlot = self.SpStr.index(self.outPlot.currentText())
+            self.plotting(self.expTime, self.inpShock, self.AllcellExpr, 
+                          self.idxPlot)
+            
+            #set plot button and add items
+            self.setPlotButton()
+    
+            #actives button: Simulation
+            self.enableSimOpt(True, True)
+            
+            self.labeliter.setText("Data Loaded!")
+            print(npzfile.files)
+            
+        except:
+            self.labeliter.setText("")
+            if not name[0] == '':
+                message = traceback.format_exc()
+                self.msgBox(message)
+        
+        print(name[0])
+        print('Data opened')
     
     def plotSetting(self):
         self.graphPlot.canvas.axes.set_ylabel("Concentration", fontsize=8)
@@ -207,6 +428,8 @@ class mainWindow(QMainWindow):
                 
         self.graphPlot2.canvas.axes.set_ylabel("Concentration", fontsize=8)
         self.graphPlot2.canvas.axes.set_ylim([0, 1])
+        self.graphPlot2.canvas.axes.set_xlabel("Time (min)", labelpad=0.0, 
+                                               fontsize=8)
         self.graphPlot2.canvas.axes.grid()
         
         self.graphPlot3.canvas.axes.set_ylabel("Concentration", fontsize=8)
@@ -216,7 +439,15 @@ class mainWindow(QMainWindow):
         self.graphPlot5.canvas.axes.set_ylabel("Concentration", fontsize=8)
         self.graphPlot5.canvas.axes.tick_params(bottom=False, labelbottom=False)
         self.graphPlot5.canvas.axes.grid()
-
+        
+        self.graphPlot6.canvas.axes.set_title("Population Parameter Iteration",
+                                              fontsize=10)        
+        self.graphPlot6.canvas.axes.tick_params(bottom=False, left=False, 
+                                                labelbottom=False, 
+                                                labelleft=False)
+        self.graphPlot6.canvas.axes.set_xlabel("Iterations", labelpad=16.0, 
+                                               fontsize=8)
+        
     #bind buttons to corresponding actions
     def buttons(self):
         #connexion to buttons
@@ -231,7 +462,7 @@ class mainWindow(QMainWindow):
         self.setButton.clicked.connect(self.setInputModel)
         #input system radio button
         self.radioEntrada.clicked.connect(self.enable_entrada)
-        #enable inputs of variability sources
+        #enables inputs of variability sources
         self.extrinsicBox.stateChanged.connect(self.enable_cov)
         self.noiseBox.stateChanged.connect(self.enable_noise)
         #spinbox button to get reaction-input index
@@ -245,7 +476,7 @@ class mainWindow(QMainWindow):
         self.numCells.valueChanged.connect(self.changeCells)
         #combobox to choose input type
         self.inputType.currentIndexChanged.connect(self.changeInput)
-        #check input information
+        #checks input information
         self.inEspecies.textChanged.connect(self.valiS)
         self.inPars.textChanged.connect(self.valiP)
         self.inReact.textChanged.connect(self.valiR)
@@ -257,7 +488,18 @@ class mainWindow(QMainWindow):
         self.pars0.textChanged.connect(self.valiPar0)
         #combobox to choose inference model
         self.modelBox.currentIndexChanged.connect(self.changeModel)
-    
+        #combobox to choose optimization algorithm
+        self.AlgoBox.currentIndexChanged.connect(self.changeAlgorithm)
+        #change to parameters tab
+        self.tabWidget.currentChanged.connect(self.tabChange)
+        
+    #change tab size when parameters chart tab is selected.
+    def tabChange(self):
+        if self.tabWidget.currentIndex() == 2:
+            self.tabWidget.resize(781,528)
+        else:
+            self.tabWidget.resize(781,371)
+        
     #input checks
     def valiMcov(self):
         val = re.match('^[0-9.,;\n ]+$', self.covMatrix.toPlainText(), re.I)
@@ -347,14 +589,17 @@ class mainWindow(QMainWindow):
         self.enableSimOpt()
         self.clearPlot()
     
-    #clean all plots
+    #clears all plots
     def clearPlot(self):
         self.graphPlot.canvas.axes.clear()
         self.graphPlot2.canvas.axes.clear()
         self.graphPlot3.canvas.axes.clear()
         self.graphPlot4.canvas.axes.clear()
         self.graphPlot5.canvas.axes.clear()
-
+        self.graphPlot6.canvas.axes.clear()
+        
+        self.clearSubplot()
+            
         self.plotSetting()
 
         self.graphPlot.canvas.draw()
@@ -362,14 +607,24 @@ class mainWindow(QMainWindow):
         self.graphPlot3.canvas.draw()
         self.graphPlot4.canvas.draw()
         self.graphPlot5.canvas.draw()
+        self.graphPlot6.canvas.draw()
+        
+        self.tabWidget.setTabText(0, "Individual")
+        self.tabWidget.setTabText(1, "Population")
+    
+    def clearSubplot(self):
+        if not len(self.tempAxes) == 0:
+            for i in range(len(self.tempAxes)):
+                self.tempAxes[i].remove()
+            self.tempAxes = []
 
-    #enable simulation and inference section
+    #enables simulation and inference section
     def enableSimOpt(self, eSim = False, eOpt = False):
-        #enable simulation
+        #enables simulation
         self.simButton.setEnabled(eSim)
         self.tabSim.setEnabled(eSim)
         
-        #Enable input configuration
+        #Enables input configuration
         if self.idxReaction == None:
             self.inputType.setEnabled(False)
             self.tOnPulse.setEnabled(False)
@@ -379,57 +634,59 @@ class mainWindow(QMainWindow):
             self.tOnPulse.setEnabled(True)
             self.tDurPulse.setEnabled(True)
         
-        #enable inference
+        #enables inference
         self.optButton.setEnabled(eOpt)
         self.tabOpt.setEnabled(eOpt)
         
     #action executed when "define" is clicked
     def identify(self):
-        #inhabilita otros botones o limpia entradas
-        #disable other buttons or clean inputs
+        #disables other buttons or clean inputs
         self.enableSimOpt()
         self.labeliter.clear()
         self.clearPlot()
-        self.outPlot.clear()
         
-        #take molecular species names
+        #shows definition state
+        self.labeliter.setText("Definig System...")
+        QApplication.processEvents()
+        
+        #takes molecular species names
         self.SpStr = self.inEspecies.text()
         self.SpStr = self.SpStr.split(',')
         self.SpStr = [x.strip() for x in self.SpStr]
         
-        #take parameter values
+        #takes parameter values
         self.parStr = self.inPars.text()
         self.parStr = re.findall('[0-9.0-9]+', self.parStr)
         
-        #take reagent matix values
+        #takes reagent matix values
         self.reacStr = self.inReact.toPlainText()
         self.reacStr = self.reacStr.split(';')
         self.reacStr = [x.split(',') for x in self.reacStr]
         
-        #take product matrix values
+        #takes product matrix values
         self.prodStr = self.inProd.toPlainText()
         self.prodStr = self.prodStr.split(';')
         self.prodStr = [x.split(',') for x in self.prodStr]
                 
         try:
-            #show data added for definig system
+            #shows data added for definig system
             self.showInfo(self.SpStr, self.parStr)
             
-            #convert parameters and get parameter names
+            #converts parameters and get parameter names
             self.valPar = list(map(float, self.parStr))
             self.nparStr = [('c'+ str(i+1)) for i in range(len(self.parStr))]
             print(self.valPar)
             print(self.nparStr)
             print(self.SpStr)
             
-            #convert data from reagent matrix
+            #converts data from reagent matrix
             self.valReac = list()
             for i in self.reacStr:
                 self.valReac.append(list(map(int, i)))
             self.valReac = np.array(self.valReac)
             print(self.valReac)
             
-            #convert data from product matrix
+            #converts data from product matrix
             self.valProd = list()
             for i in self.prodStr:
                 self.valProd.append(list(map(int, i)))
@@ -437,7 +694,7 @@ class mainWindow(QMainWindow):
             print(self.valProd)
             print(self.idxReaction)
             
-            #check input dimentions
+            #checks input dimentions
             if self.valReac.shape != self.valProd.shape:
                 self.outODEs.append("\nThe dimensions of the matrices are not equal.") 
                 return
@@ -447,52 +704,64 @@ class mainWindow(QMainWindow):
             elif (self.valReac.shape[1] != len(self.valPar)) or (self.valProd.shape[1] != len(self.valPar)):
                 self.outODEs.append("\nThe number of columns in the matrices is not equal to the number of parameters.") 
                 return
-
-            #compute simbolic expressions of the system
-            #get ODEs in simbolic form together to their respective varible names
-            self.nameInp = 'U'
             
-            #compute system without input
+            #computes simbolic expressions of the system
+            #gets ODEs in simbolic form together to their respective varible names
+            self.nameInp = 'u'
+            
+            #computes system without input
             if self.idxReaction == None:
                 self.ecuaciones, self.variables = s2b.simbODE(self.SpStr,
                     self.valReac, self.valProd,self.nparStr)
                 
-            #Compute system with input
+            #Computes system with input
             else:
                 self.ecuaciones, self.variables = s2b.simbODE(self.SpStr,
                     self.valReac, self.valProd, self.nparStr, 
                     inputN=self.nameInp, indexU = self.idxReaction)
             
-            #show added data for defining
+            #creates .py file containig the differential equations system
+            s2b.modelDefiner(self.variables["species"], self.ecuaciones, 
+                             self.variables["pars"])
+
+            #shows status
+            self.labeliter.setText("System Defined!")
+
+            #shows data added for defining
             self.showInfo(self.SpStr, self.parStr, self.valReac, self.valProd,
                           self.ecuaciones)
             
-            #active button: Simulation
+            #actives button: Simulation
             self.enableSimOpt(True)
             
-            #store used information in simulation
+            #stores information used in simulation
             self.regressor = {
                     "ODEs": self.ecuaciones,
                     "matrizR": self.valReac,
                     "matrizP": self.valProd,
-                    "vPars": self.valPar,
+                    "vPars": np.array(self.valPar),
                     "idxR": self.idxReaction
                     }
             self.regressor.update(self.variables)
             
-            #set species names in combobox
-            self.SpStr.reverse()
-            self.outPlot.addItems(self.SpStr)
-            self.SpStr.reverse()
-            
+            self.addItemsPlot()
+
             #noise measurement messagge
-            self.noiseBox.setToolTip("Measurement noise will affect \na the species: " + str(self.SpStr[-1]))
+            self.noiseBox.setToolTip("Measurement noise only will affect \n the observed species: " + str(self.SpStr[-1]))
             
         except:
             self.outODEs.append("\nPlease review the input information.")
+            message = traceback.format_exc()
+            self.msgBox(message)
+            
+    def addItemsPlot(self):
+        #set species names in combobox
+        self.outPlot.clear()
+        self.SpStr.reverse()
+        self.outPlot.addItems(self.SpStr)
+        self.SpStr.reverse()
             
     def showInfo(self, SpStr, parStr, valReac = np.array([]), valProd = np.array([]), ecuaciones = np.array([])):
-            
             #show molecular species
             self.outODEs.setText("Molecular Species: " + ', '.join(self.SpStr))
             
@@ -516,22 +785,22 @@ class mainWindow(QMainWindow):
                     self.outODEs.append('\t\t|  ' + ', '.join(temp) + '  |  ' + SpStr[i])
                 print(MatrizV)
 
-            #shoe differential equations
-            self.outODEs.append("Differential Equations: ")
+            #shows differential equations
+            self.outODEs.append("Differential Equations System: ")
             for j in range(len(ecuaciones)):
                 self.outODEs.append('\t' + 'd' + SpStr[j] + '/dt =  ' + str(ecuaciones[j]))
                     
-    #take reaction-input index if it changes
+    #takes reaction-input index if it changes
     def changeIdxR(self):
         self.idxReaction = self.Ridx.value()
 
     def enable_entrada(self):
-        #enable or disable inputs for definig of one system input
+        #enables or disables inputs for definig of one system input
         self.parStr = None
         self.parStr = self.inPars.text()
         self.parStr = self.parStr.split(',')
         
-        #enable input just if it detects any parameter
+        #enables input just if it detects any parameter
         if self.parStr[0] != '':
             if self.radioEntrada.isChecked(): 
                 self.Ridx.setEnabled(True)
@@ -546,284 +815,278 @@ class mainWindow(QMainWindow):
     
     #action executed when "simulate" is clicked
     def simulate(self):
-        #reboot current and previous sections
+        #sets tab 1
+        self.tabWidget.setCurrentIndex(0)
+        #reboots current and previous sections
         self.clearPlot()
         self.changePlotButton.setEnabled(False)
-        self.spPlotBox.clear()
-        self.spPlotBox2.clear()
 
         #disable during simulation
         self.enableSimOpt(False)
         
-        #take experiment duration value
+        #takes experiment duration value
         self.expTdur = self.spinTdur.value()
         print(self.expTdur)
         
         #number of cells to simulate
         self.nCells = self.numCells.value()
+        self.sampleCells.setMaximum(self.nCells)
         
-        #take initial concentrations values
+        #takes initial concentrations values
         self.concenStr = self.concentSp.text()
         self.concenStr = re.findall('[0-9.0-9]+', self.concenStr)
         
-        #take input configuration if there is one
+        #takes input configuration if there is one
         if self.idxReaction != None:
-            #take pulse start values
+            #takes pulse start values
             self.tOnStr = self.tOnPulse.text()
             self.tOnStr = re.findall('[0-9.0-9]+', self.tOnStr)
         
-            #take pulse duration values
+            #takes pulse duration values
             self.tDurStr = self.tDurPulse.text()
             self.tDurStr = re.findall('[0-9.0-9]+', self.tDurStr)
         
-#        try:
-        #convert initial concentration values to float
-        self.valConcen = list(map(float, self.concenStr))
-        self.regressor["species0"] = np.array(self.valConcen)
-    
-        #check concentration values to be equal to amount of species
-        if len(self.SpStr) != len(self.valConcen):
-            self.outODEs.append("\nThe number of initial concentration values is not equal to the number of species.")
-            self.enableSimOpt(True)
-            return
-        print(self.valConcen)
-        
-        #compute input signal
-        if self.idxReaction == None:
-            #time and input vectors
-            self.expTime = np.linspace(0, self.expTdur, self.expTdur + 1)
-            self.inpShock = np.ones(len(self.expTime))
-            
-        else:
-            #convet pulse values to float
-            self.valTon = list(map(float, self.tOnStr))
-            self.valTdur = list(map(float, self.tDurStr))
-            print(self.valTon, self.valTdur)
-            
-            #check experiment duration
-            if not(all((i >= 0 and i < self.expTdur) for i in self.valTon)):
-                self.outODEs.append("\nThe start of the pulses is not within the established limits.")
-                self.enableSimOpt(True)
-                return
-            elif not(all((i > 0) for i in self.valTdur)):
-                self.outODEs.append("\nThe duration of the pulses must be greater than zero.")
-                self.enableSimOpt(True)
-                return
-            
-            #get input type
-            self.changeInput()
-            print(self.inputT, type(self.inputT))
-            
-            #compute input system
-            self.expTime, self.inpShock = self.computeInput()
-        
-        #save information for simulating
-        self.regressor["Vtime"] = self.expTime
-        self.regressor["inpU"] = self.inpShock
-        print(self.regressor)
-        
-        #show information for simulating
-        self.showInfosim(self.expTdur, self.concenStr, self.nCells)
-        
-        #compute system simulation
-        self.AllcellExpr = self.computeSim(self.nCells, self.regressor)
         try:
-            print(self.AllcellExpr.shape)
-        except:
-            print(self.AllcellExpr)
+            #converts initial concentration values to float
+            self.valConcen = list(map(float, self.concenStr))
+            self.regressor["species0"] = np.array(self.valConcen)
+        
+            #checks concentration values to be equal to amount of species
+            if len(self.SpStr) != len(self.valConcen):
+                self.outODEs.append("\nThe number of initial concentration values is not equal to the number of species.")
+                self.enableSimOpt(True)
+                return
+            print(self.valConcen)
             
-        #plot system output
-        self.idxPlot = self.SpStr.index(self.outPlot.currentText())
-        self.plotting(self.expTime, self.inpShock, self.AllcellExpr, self.idxPlot)
-        
-        #store simulated data
-        self.data = {
-                "genExpr": self.AllcellExpr,
-                "inPulse": self.inpShock,
-                "vTime": self.expTime,
-                }
-        
-        #enable button and combobox to change species plot
+            #computes input signal
+            if self.idxReaction == None:
+                #time and input vectors
+                self.expTime = np.linspace(0, self.expTdur, self.expTdur + 1)
+                self.inpShock = np.ones(len(self.expTime))
+                
+            else:
+                #convets pulse values to float
+                self.valTon = list(map(float, self.tOnStr))
+                self.valTdur = list(map(float, self.tDurStr))
+                print(self.valTon, self.valTdur)
+                
+                #checks experiment duration
+                if not(all((i >= 0 and i < self.expTdur) for i in self.valTon)):
+                    self.outODEs.append("\nThe start of the pulses is not within the established limits.")
+                    self.enableSimOpt(True)
+                    return
+                elif not(all((i > 0) for i in self.valTdur)):
+                    self.outODEs.append("\nThe duration of the pulses must be greater than zero.")
+                    self.enableSimOpt(True)
+                    return
+                
+                #gets input type
+                self.changeInput()
+                print(self.inputT, type(self.inputT))
+                
+                #computes input system
+                self.expTime, self.inpShock = self.computeInput()
+            
+            #saves information for simulating
+            self.regressor["Vtime"] = self.expTime
+            self.regressor["inpU"] = self.inpShock
+            print(self.regressor)
+            
+            #shows information for simulating
+            self.showInfosim(self.expTdur, self.concenStr, self.nCells)
+            
+            #computes system simulation
+            self.AllcellExpr = self.computeSim(self.nCells, self.regressor)
+            try:
+                print(self.AllcellExpr.shape)
+            except:
+                print(self.AllcellExpr)
+                
+            #plots system output
+            self.idxPlot = self.SpStr.index(self.outPlot.currentText())
+            self.plotting(self.expTime, self.inpShock, self.AllcellExpr, self.idxPlot)
+                        
+            #stores simulated data
+            self.data = {
+                    "genExpr": self.AllcellExpr,
+                    "inPulse": self.inpShock,
+                    "vTime": self.expTime,
+                    }
+            
+            #enables plot button and add items
+            self.setPlotButton()
+            
+            #enables inference section
+            self.enableSimOpt(True, True)
+        except:
+            self.enableSimOpt(True)
+            self.outODEs.append("\nPlese, review the input information")
+            message = traceback.format_exc()
+            self.msgBox(message)
+    
+    def setPlotButton(self):
+        #enables button and combobox to change species plot
         self.changePlotButton.setEnabled(True)
     
-        #set species names in combobo which change plot
+        #sets species names in combobo which change plot
+        self.spPlotBox.clear()
+        self.spPlotBox2.clear()
         self.SpStr2 = self.SpStr.copy()
         self.SpStr2.append('All')
         self.spPlotBox.addItems(self.SpStr2)
         self.spPlotBox2.addItems(self.SpStr)
-        
-        #enable inference section
-        self.enableSimOpt(True, True)
-
-#        except:
-#            self.enableSimOpt(True)
-#            self.outODEs.append("\nPor favor, revisar la información de entrada")
     
     def computeInput(self):
-        #compute input
-        hog, expTime, perfiles = s2b.HOGexpr(np.array(self.valTon),
+        #computes input
+        uValve, expTime = s2b.pulse_expr(np.array(self.valTon),
                                              np.array(self.valTdur), 
                                              np.array([self.expTdur], float))
         if self.inputT == 'Pulse':
-            #take valve values as input
-            inpShock = perfiles["t_u_Valve"]
+            #takes valve values as input
+            inpShock = uValve
             print(inpShock.shape)
-            
         elif self.inputT == 'Model':
-            self.inputModelW.regressorInp["inpU"] = perfiles["t_u_Valve"]
+            self.inputModelW.regressorInp["inpU"] = uValve
             self.inputModelW.regressorInp["Vtime"] = expTime
             print(self.inputModelW.regressorInp)
-            print(perfiles["t_u_Valve"].shape, expTime.shape)
+            print(uValve.shape, expTime.shape)
             
-            #compute system input
+            #computes system input
             ExprInp = s2b.solveODE(self.inputModelW.regressorInp["ParValues"], self.inputModelW.regressorInp)
             inpShock = ExprInp[-1,:]
-            
         return expTime, inpShock
            
     def plotting(self, expTime, inpShock, AllcellExpr, idxPlot): 
-        #set if there is a secondary plot
+        #sets if there is a secondary plot
         if self.radioPlot2.isChecked():
             self.graphPlot.resize(891,271)
             self.graphPlot3.resize(891,271)
-
         else:
             self.graphPlot.resize(891,411)
             self.graphPlot3.resize(891,411)
             
-        #show plotting state
+        #shows plotting state
         self.labeliter.setText("Plotting...")
         QApplication.processEvents()
         
-        #plot input system
+        #plots input system
         self.graphPlot2.canvas.axes.plot(expTime, inpShock, 'r')
         self.graphPlot2.canvas.axes.fill_between(expTime, inpShock, color='r')
         
-        #get species to be plot
+        #gets species to be plot
         print(self.outPlot.currentText())
         print(idxPlot)
         
-        #plot when there is variability
-        if self.noiseBox.isChecked() or self.intrinsicBox.isChecked() or self.extrinsicBox.isChecked():
-            for i in range(0, self.nCells):
-                self.graphPlot.canvas.axes.plot(expTime, AllcellExpr[i,:,idxPlot])
-                
-                #secondary species plot
-                if self.radioPlot2.isChecked() and self.subplotSP == True:
-                    self.graphPlot4.canvas.axes.plot(expTime, AllcellExpr[i,:,self.indexPlot2])  
-                
-                self.labeliter.setText("Plotting... " + str(i+1))
-                QApplication.processEvents()
-        
-            #adjust data to be contain between the 95 % of the output. (2.5-97.5)
-            populationlim = np.zeros((AllcellExpr[:,:,idxPlot].shape))
+        #plots when there is variability
+        if self.noiseBox.isChecked() or self.intrinsicBox.isChecked() or self.extrinsicBox.isChecked() or len(AllcellExpr.shape) == 3:
+            if self.indPlotEnable.isChecked():
+                for i in range(0, self.nCells):
+                    self.graphPlot.canvas.axes.plot(expTime, AllcellExpr[i,:,idxPlot], linewidth=1)
+                    
+                    #secondary species plot
+                    if self.radioPlot2.isChecked() and self.subplotSP == True:
+                        self.graphPlot4.canvas.axes.plot(expTime, AllcellExpr[i,:,self.indexPlot2], 
+                                                         linewidth=1)  
+                    
+                    #shows simulation status
+                    self.labeliter.setText("Plotting... " + str(i+1) + '/' + str(self.nCells))
+                    QApplication.processEvents()
+                #end for i
+            #end if self.indPlotEnable
             
-            #set percentiles limits and vlues
-            limperc = np.array([2.5, 97.5])    
-            percen = np.linspace(limperc[0],limperc[1],num=self.nCells)
+            #adjusts data to be contain between the 95 % of the output. (2.5-97.5)
+            ##########################################################
+            ExprMin = np.quantile(AllcellExpr[:,:,idxPlot], 0.025, axis=0)
+            ExprMax = np.quantile(AllcellExpr[:,:,idxPlot], 0.975, axis=0)
+            ##########################################################
             
-            #compute the 95% of the values from the population response
-            for j in range(0,len(expTime)):
-                populationlim[:,j] = np.percentile(AllcellExpr[:,j,idxPlot], percen[:])
-            #end for j
-            
-            #compute minumum and maximum values in each instant of time
-            ExprMin = np.amin(populationlim, axis=0)
-            ExprMax = np.amax(populationlim, axis=0)
-            
-            #plot population output
+            #plots population output
             self.graphPlot3.canvas.axes.plot(expTime, np.median(AllcellExpr[:,:,idxPlot], axis=0), label=self.SpStr[idxPlot], linewidth=2)
             self.graphPlot3.canvas.axes.legend(loc='best')
             self.graphPlot3.canvas.axes.fill_between(expTime, ExprMin,ExprMax, alpha = 0.4)
             
-            #highlight negative values in the plot
+            #highlights negative values in the plot
             if np.amin(AllcellExpr[:,:,idxPlot]) < 0:
                 self.graphPlot3.canvas.axes.fill_between(expTime, np.amin(AllcellExpr[:,:,idxPlot]),
                                                  color = 'C3', alpha = 0.1)
                 self.graphPlot.canvas.axes.fill_between(expTime, np.amin(AllcellExpr[:,:,idxPlot]),
                                                  color = 'C3', alpha = 0.1)
-            
-            #plot secondary population species
+            #plots secondary population species
             if self.radioPlot2.isChecked() and self.subplotSP == True:
-                #since the obtained values it takes the 95 % of the contained responses
-                #between the 2.5 and 97.5 percentiles
-                populationlim2 = np.zeros((AllcellExpr[:,:,self.indexPlot2].shape))
-                
-                #calculo del 95% de los valores de las respuestas de la población
-                #compute the 95% values of the population output
-                for j in range(0,len(expTime)):
-                    populationlim2[:,j] = np.percentile(AllcellExpr[:,j,self.indexPlot2], percen[:])
-                #end for j
+                #adjusts data to be contain between the 95 % of the output. (2.5-97.5)
+                ##########################################################
+                ExprMin2 = np.quantile(AllcellExpr[:,:,self.indexPlot2], 0.025, axis=0)
+                ExprMax2 = np.quantile(AllcellExpr[:,:,self.indexPlot2], 0.975, axis=0)
+                ##########################################################
 
-                #compute minimum and maximum values in each instant of time
-                ExprMin2 = np.amin(populationlim2, axis=0)
-                ExprMax2 = np.amax(populationlim2, axis=0)   
-
-                #plot population output 
+                #plots population output 
                 self.graphPlot5.canvas.axes.plot(expTime, np.median(AllcellExpr[:,:,self.indexPlot2], axis=0), label=self.SpStr[self.indexPlot2], linewidth=2)
                 self.graphPlot5.canvas.axes.legend(loc='best')
                 self.graphPlot5.canvas.axes.fill_between(expTime, ExprMin2,ExprMax2, alpha = 0.4)                 
                 
-                #highligh negative values in the plots
+                #highligths negative values in the plots
                 if np.amin(AllcellExpr[:,:,:]) < 0:
                     self.graphPlot4.canvas.axes.fill_between(expTime, np.amin(AllcellExpr[:,:,self.indexPlot2]),
                                                      color = 'C3', alpha = 0.1)
                     self.graphPlot5.canvas.axes.fill_between(expTime, np.amin(AllcellExpr[:,:,self.indexPlot2]),
                                                      color = 'C3', alpha = 0.1)
         else:
-            #plot when there is not variability
-            self.graphPlot.canvas.axes.plot(expTime, AllcellExpr[idxPlot,:], label=self.SpStr[idxPlot])
+            #plots when there is not variability
+            self.graphPlot.canvas.axes.plot(expTime, AllcellExpr[idxPlot,:], 
+                                            label=self.SpStr[idxPlot], linewidth=1)
             self.graphPlot.canvas.axes.legend(loc='best')
             
-            #plot population output
+            #plots population output
             self.graphPlot3.canvas.axes.plot(expTime, AllcellExpr[idxPlot,:], linewidth=2, label=self.SpStr[idxPlot])
             self.graphPlot3.canvas.axes.legend(loc='best')
             
             #secondary species plot
             if self.radioPlot2.isChecked() and self.subplotSP == True:
-                self.graphPlot4.canvas.axes.plot(expTime, AllcellExpr[self.indexPlot2,:], label=self.SpStr[self.indexPlot2])
+                self.graphPlot4.canvas.axes.plot(expTime, AllcellExpr[self.indexPlot2,:], 
+                                                 label=self.SpStr[self.indexPlot2], linewidth=1)
                 self.graphPlot4.canvas.axes.legend(loc='best')
                 
-                #plot population output
+                #plots population output
                 self.graphPlot5.canvas.axes.plot(expTime, AllcellExpr[self.indexPlot2,:], linewidth=2, label=self.SpStr[self.indexPlot2])
                 self.graphPlot5.canvas.axes.legend(loc='best')
 
-        #draw plots into objects
+        #draws plots into objects
         self.graphPlot.canvas.draw()
         self.graphPlot2.canvas.draw()
         self.graphPlot3.canvas.draw()
         self.graphPlot4.canvas.draw()        
         self.graphPlot5.canvas.draw()        
         
-        #disable secondary species plot
+        #disables secondary species plot
         self.subplotSP = False
         
+        #shows plotting status
         self.labeliter.setText("Plot Done!")
         QApplication.processEvents()
   
     def computeSim(self, nCells, regressor): 
-        #tag to show simulation state
+        #tag to show simulation status
         self.labeliter.setText("Simulating...")
         QApplication.processEvents()
 
         #array to save individual outputs
-        AllcellExpr = np.zeros((nCells, len(regressor["inpU"]), len(regressor["ODEs"])))
+        AllcellExpr = np.zeros((nCells, len(regressor["inpU"]), 
+                                len(regressor["ODEs"])))
 
         #system simulation depending on the variability type
         if self.noiseBox.isChecked() or self.intrinsicBox.isChecked() or self.extrinsicBox.isChecked():
             #process extrinsic variability
             if self.extrinsicBox.isChecked():
                 print("MxEf")
-                #compute natural log from parameter values
+                #computes natural log from parameter values
                 self.logVpars = np.log(regressor["vPars"])
 
-                #create log-covariance matrix
-#                cov = 0.05*(np.identity(len(regressor["vPars"])))
+                #creates log-covariance matrix
                 self.covStr = self.covMatrix.toPlainText()
                 self.covStr = self.covStr.split(';')
                 self.covStr = [x.split(',') for x in self.covStr]
                 
-                #convert logcovariance matrix
+                #converts logcovariance matrix
                 self.valCov = list()
                 for i in self.covStr:
                     self.valCov.append(list(map(float, i)))
@@ -835,7 +1098,6 @@ class mainWindow(QMainWindow):
                     self.outODEs.append("\nThe dimensions of the covariance matrix are not equal to the number of kinetic parameters.") 
                     QApplication.processEvents()
                     return
-                
                 #check log-covariance matrix to be symmetric
                 elif not(self.isSymmetric(self.valCov, len(self.logVpars))):
                     self.outODEs.append("\nThe covariance matrix must be symmetric.") 
@@ -843,64 +1105,80 @@ class mainWindow(QMainWindow):
                     return
                 
                 #compute cell multiparameters
-                self.multipars = np.exp(np.random.multivariate_normal(self.logVpars, self.valCov, nCells))
+                self.multipars = np.exp(np.random.multivariate_normal(self.logVpars,
+                                                                      self.valCov, 
+                                                                      nCells))
                 print(self.logVpars)
                 print(self.valCov)
                 print(self.multipars)
-
             else:
                 #array with original parameters
                 self.multipars = np.tile(regressor["vPars"], (nCells,1))
             print(self.multipars)
-            
-            #population simulations
+
+            t2 = time.time()            
+            #population simulation
             for k in range(0,nCells):
                 print('Célula: ' + str(k+1))
                 #tag to show simulation iteration
-                self.labeliter.setText("Simulating... " + str(k+1))
+                self.labeliter.setText("Simulating... " + str(k+1) + '/' + str(nCells))
                 QApplication.processEvents()
             
-                #process intrinsic variability
+                #processes intrinsic variability
                 if self.intrinsicBox.isChecked():
                     print("Gill")
-                    #numeric solution of ODEs
+                    #numeric stochastic solution of differential equations
                     try:
                         cellExpr = s2b.cGill(self.multipars[k,:], regressor)
                     except:
                         cellExpr = s2b.gillAl(self.multipars[k,:], regressor)
                 else:
-                    #numeric solution of ODEs
-                    cellExpr = s2b.solveODE(self.multipars[k,:], regressor)
+                    #numeric deterministic solution of differential equations
+                    try:    
+                        t0 = time.time()
+                        cellExpr = s2b.solveODEpy(self.multipars[k,:], regressor)
+                        t1 = time.time()
+                        print("Runs in", t1-t0)
+                        
+                    except:
+                        cellExpr = s2b.solveODE(self.multipars[k,:], regressor)
                     
-                #store individual simulated outputs
+                #stores individual simulated outputs
                 for j in range(0, len(cellExpr)):
                     AllcellExpr[k,:,j] = cellExpr[j,:]
+                #end for j
+            #end for k
+            
+            t3 = time.time()
+            print("Whole population runs in", t3-t2)
             
             if self.noiseBox.isChecked():
                 print("Noise")
                 
-                #get noise parameters
+                #gets noise parameters
                 self.changeErrorPar()
                 
                 #normal distribution
                 mu, sigma = 0, 1 #mean and standard deviation
                 ndis = np.random.normal(mu, sigma, (nCells,len(regressor["inpU"])))
                 
-                #compute individual output with noise for each species
+                #computes individual output with noise for each species
                 hvar = self.a_err + self.b_err*AllcellExpr[:,:,-1]     
                 noisySp = AllcellExpr[:,:,-1] + hvar*ndis
                 
                 #store species profiles with noise
-                AllcellExpr[:,:,-1] = noisySp
-                
+                AllcellExpr[:,:,-1] = noisySp   
         else:
             #deterministic output
             #numeric solution of ODEs
-            cellExpr = s2b.solveODE(regressor["vPars"], regressor)
+            try:
+                cellExpr = s2b.solveODEpy(regressor["vPars"], regressor)
+            except:
+                cellExpr = s2b.solveODE(regressor["vPars"], regressor)
             AllcellExpr = cellExpr
         
         print(self.noiseBox.isChecked(), self.intrinsicBox.isChecked(), self.extrinsicBox.isChecked())
-                
+        
         self.labeliter.setText("Simulation Done!")
         QApplication.processEvents()
         
@@ -910,7 +1188,7 @@ class mainWindow(QMainWindow):
     def isSymmetric(self, mat, N): 
         for i in range(N): 
             for j in range(N): 
-                #compare matrix values with its equivalent
+                #compares matrix values with its equivalent
                 if (mat[i,j] != mat[j,i]): 
                     return False
         return True
@@ -939,14 +1217,14 @@ class mainWindow(QMainWindow):
             #show input pulses
             self.outODEs.append("Input Pulses: " + ', '.join(pulseStr))
             
-        #show number of cells
+        #shows number of cells
         self.outODEs.append("Number of Cells: " + str(nCells))
 
     #function to update experiment duration value
     def changeTdur(self):
         self.expTdur = self.spinTdur.value()
         
-    #get noise parameters
+    #gets noise parameters
     def changeErrorPar(self):
         self.a_err = self.spinAval.value()
         self.b_err = self.spinBval.value()
@@ -955,19 +1233,21 @@ class mainWindow(QMainWindow):
     #function to update number of cells
     def changeCells(self):
         self.nCells = self.numCells.value()
+        if self.nCells > 1:
+            self.sampleCells.setMaximum(self.nCells)
     
-    #open window to define input model
+    #opens window to define input model
     def setInputModel(self):
         self.inputModelW.exec_()
     
-    #enable input box to define log-covarince matrix
+    #enables input box to define log-covarince matrix
     def enable_cov(self):
         if self.extrinsicBox.isChecked():
             self.covMatrix.setEnabled(True)
         else:
             self.covMatrix.setEnabled(False)
     
-    #enable input to define noise parameter values
+    #enables input to define noise parameter values
     def enable_noise(self):
         if self.noiseBox.isChecked():
             self.spinAval.setEnabled(True)
@@ -976,19 +1256,19 @@ class mainWindow(QMainWindow):
             self.spinAval.setEnabled(False)
             self.spinBval.setEnabled(False)
                
-    #change species to be plotted
+    #changes species to be plotted
     def changePlot(self):
         #clean plots
         self.clearPlot()
         #disable while plitting
         self.changePlotButton.setEnabled(False)
                 
-        #get species to be plotted
+        #gets species to be plotted
         print(self.spPlotBox.currentText())
         self.idxPlot2 = self.SpStr2.index(self.spPlotBox.currentText())
         print(self.idxPlot2)
         
-        #get secondary species to be plotted
+        #gets secondary species to be plotted
         if self.radioPlot2.isChecked():
             self.indexPlot2 = self.SpStr.index(self.spPlotBox2.currentText())
             print(self.indexPlot2)
@@ -996,21 +1276,21 @@ class mainWindow(QMainWindow):
             #enable secondary species subplot
             self.subplotSP = True
         
-        #plot chose species
+        #plots chose species
         if not(self.spPlotBox.currentText() == "All"):
             self.plotting(self.expTime, self.inpShock, self.AllcellExpr, self.idxPlot2)
         
         else:
-            #plot all outputs
+            #plots all outputs
             for i in range(len(self.SpStr)):
                 self.plotting(self.expTime, self.inpShock, self.AllcellExpr, i)
         
-        #enable after plotting
+        #enables after plotting
         self.changePlotButton.setEnabled(True)
-        #disable secondary species subplot
+        #disables secondary species subplot
         self.subplotSP = False
     
-    #enable combobox to choose secondary species to be plotted
+    #enables combobox to choose secondary species to be plotted
     def enablePlot2(self):
         if self.radioPlot2.isChecked():
             self.spPlotBox2.setEnabled(True)
@@ -1018,27 +1298,32 @@ class mainWindow(QMainWindow):
             self.spPlotBox2.setEnabled(False)
                     
     def inferate(self):
-        #clean plots
-        self.clearPlot()
-        #restore size of main plot
+        #restores size of main plot
         self.graphPlot.resize(891,411)
+        self.clearPlot()
 
-        #disable while infering
+        #disables while infering
         self.enableSimOpt(False, False)
 
-        #set tab 1
+        #sets tab 1
         self.tabWidget.setCurrentIndex(0)
+        
+        #change tab names
+        self.tabWidget.setTabText(0, "Profile Fitting")
+        self.tabWidget.setTabText(1, "Function Value")
 
-        #get type modelo to perform inference
+        #gets type modelo to perform inference
         self.modelInfr = self.modelBox.currentText()
         print(self.modelInfr)
         
-        #take initial parameter values
+        #takes initial parameter values
         self.iparStr = self.pars0.text()
         self.iparStr = re.findall('[0-9.0-9]+', self.iparStr)
         
         try:
             self.beta0 = list(map(float, self.iparStr))
+            
+            #check parameter values
             if len(self.beta0) != len(self.regressor["vPars"]):
                 self.outODEs.append("The number of initial parameters must be equal to the number of kinetic parameters.")
                 self.enableSimOpt(True, True)
@@ -1052,26 +1337,47 @@ class mainWindow(QMainWindow):
                 self.Obs = np.array([self.data["genExpr"][-1,:]])
                 print(self.Obs.shape)
             
+            #computes inferring process
             self.betacal = self.computeInfr(self.modelInfr, self.beta0, self.Obs, self.regressor)
             
+            #shows information estimated during inferring process
             self.showInfoInfr(self.betacal)
+            
+            #save parameter evolution through iteration for each cell
+            try:
+                if self.parAny.isChecked():
+                    self.clearSubplot()
+                    self.parAnalysis(self.iterPars, self.nparStr + ['a', 'b'],
+                                         np.concatenate((self.valPar, np.array([self.a_err, self.b_err])), axis=None))
+            except:
+                self.outODEs.append("\nThe number of iterations required to estimate each cell was different.")
+
+            self.labeliter.setText("Inference Done!")
             
             #enable when inference is done
             self.enableSimOpt(True, True)
-        
+            
         except:
             self.enableSimOpt(True, True)
-            self.outODEs.append("\nPlease review the input information.")
+            self.outODEs.append("\nPlease, review the input information.")
+            message = traceback.format_exc()
+            self.msgBox(message)
 
     #perform model stimations
     def computeInfr(self, model, beta0, Obs, regressor):
+        #lets know inferring state
+        self.stateN = 0
         self.labeliter.setText("Inferring...")
         QApplication.processEvents()                   
         
         #determine mean and standar deviation curves
-        self.uObs = np.mean(Obs, axis=0)
-        self.sdObs = np.std(Obs, axis=0)
-        
+        if not np.isnan(Obs).any():
+            self.uObs = np.mean(Obs, axis=0)
+            self.sdObs = np.std(Obs, axis=0)
+        else:
+            self.uObs = np.nanmean(Obs, axis=0)
+            self.sdObs = np.nanstd(Obs, axis=0)
+            
         #initial noise parameter values
         self.A0 = self.A0Box.value()
         self.B0 = self.B0Box.value()
@@ -1081,116 +1387,148 @@ class mainWindow(QMainWindow):
         #number of iterations to be perform
         self.iterInfr = self.iterBox.value()
         
+        #value tolerated between iteration for convergence
+        self.tolerance_value = self.spinTolerance.value()
+        
+        #clear costarray and parsArray
+        self.costArray = []
+        self.parsArray = []
+        
+        #get algorithm used to estimate parameters
+        self.algorithm = self.AlgoBox.currentText()
+        
+        if self.algorithm == "CMA-ES":
+            try:
+                self.getSig = QInputDialog.getDouble(self, 'CMA-ES Parameter', 'Enter Sigma value:', 0.3)
+                self.sigma = self.getSig[0]
+            except:
+                self.sigma = 0.3
+            
         self.step = 0
         if model == "Mean Curve Fit":
             #use curve_fit functon to perform regression over the mean curve
             #to infer parameters
             def ODEfit(regressor, *pars):
-                cellExpr = s2b.solveODE(pars, regressor)
-                
+                #solve simbolic ODEs using new parameters
+                cellExpr = s2b.solveODE(pars, regressor)                
+                print(pars)
+                #iterations count
                 self.step += 1
-                if self.step % 2:
-                    print(pars)
+                if self.step % 20:
+                    #shows inferring status
+                    self.inferState()
                     self.plotInfr(self.expTime, self.uObs, cellExpr[-1,:])
                 return cellExpr[-1,:]
             
             betacal, cov = curve_fit(ODEfit, regressor, self.uObs, beta0)
             print(betacal, len(betacal))
         
-        elif model == "Mean Cell": 
-            #use likelihood function to estimate population parameters
-            regressor["allObs"] = Obs
-            regressor["errPars"] = self.errAB
-
+        elif model == "Mean Cell":
+            #uses likelihood function to estimate population parameters
+            regressor["Obs"] = Obs
+            GuessPars = np.concatenate((beta0, self.errAB))
+            
+            #likelihood model function
             self.step = 0
-            def MLL_mc(pars, regressor):
-                #compute simulation with temporal parameters
-                cellExpr= s2b.solveODE(pars, regressor)
-                meanP = cellExpr[-1,:]
+            def MLLWrap(pars, regressor):
+                nPars = pars[-2:]
                 
-                sdP = regressor["errPars"][0] + regressor["errPars"][1]*meanP
-                sdP = np.absolute(sdP)
+                expr = s2b.solveODEpy(pars[:-2], regressor)
+                uS = expr[-1,:]
                 
-                self.step += 1
-                if self.step % 2:
-                    print(pars)
-                    self.plotInfr(self.expTime, self.uObs, meanP, self.sdObs, sdP)
-            
-                ncells = len(regressor["allObs"])
+                sdS = nPars[0] + nPars[1]*uS
                 
-                fSim = np.tile(meanP, (ncells,1))
-                hSim = np.tile(sdP, (ncells,1))
+                fSim = np.tile(uS, (len(regressor["Obs"]),1))
+                hSim = np.tile(sdS,(len(regressor["Obs"]),1))
                 
-                Observaciones = regressor["allObs"]
-                
-                mllmc = s2b.MLLmeasure(Observaciones, fSim, hSim)
-                
-                return mllmc
-            
-            #estimation of kinetics parameters
-            betacal = fmin(MLL_mc, x0 = beta0, args=(regressor,),
-                           maxiter=self.iterInfr, maxfun=self.iterInfr)
-            print(betacal)
-            regressor["betaCal"] = betacal
-            
-            #mean curve simulation from infered kinetic parameters
-            cellBeta = s2b.solveODE(betacal, regressor)
-            regressor["uC"] = cellBeta[-1,:]
-            
-            #minus log-likelihood function
-            self.step = 0
-            def MLL_mcErr(error, regressor):
-                meanP = regressor["uC"]
-                sdP = error[0] + error[1]*meanP
-                sdP = np.absolute(sdP)
-                
-                self.step += 1
-                if self.step % 2:
-                    print(error)
-                    self.plotInfr(self.expTime, self.uObs, meanP, self.sdObs, sdP)
+                mll = s2b.MLLmeasure(regressor["Obs"], fSim, hSim)
+                print(mll)
 
-                #change of cost value to fit model
-                ncells = len(regressor["allObs"])
-                fSim = np.tile(meanP, (ncells,1))
-                hSim = np.tile(sdP, (ncells,1))
-                
-                #observations array
-                Observaciones = regressor["allObs"]
-                
-                #compute minus-log-likelihood
-                mllmc = s2b.MLLmeasure(Observaciones, fSim, hSim)
-                return mllmc
+                #iterations count
+                self.step += 1
+                if not self.step % 20:
+                    #show inferring state
+                    self.inferState()
+                    self.plotInfr(self.expTime, self.uObs, uS, self.sdObs, sdS)
+                    if self.liveInfBox.isChecked():
+                        self.costPlot(mll)
+                        self.parsPlot(pars)
+                return mll
             
-            #minimization of cost function based on likelihood estimaton of
-            #noise parameters
-            result = fmin(MLL_mcErr, x0 = self.errAB, args=(regressor,),
-                          maxiter=self.iterInfr, maxfun=self.iterInfr)
-            self.noiseCal = result
-            print(result)
+            if self.algorithm == "Downhill Simplex":
+                minimum, allvecs = fmin(MLLWrap, GuessPars, args=(regressor,), 
+                               xtol=self.tolerance_value, 
+                               ftol=self.tolerance_value,
+                               maxiter=self.iterInfr, retall=True)
+                
+                niter = len(allvecs)
+                
+#                res = minimize(MLLWrap, GuessPars, method='Nelder-Mead', 
+#                               tol=self.tolerance_value, args=(regressor,), 
+#                               options={'maxiter':self.iterInfr,
+#                                        'return_all': True})
+#                minimum = res.x
+#                allvecs = res.allvecs
+                
+            elif self.algorithm == "CMA-ES":
+                
+                res = cma.fmin(MLLWrap, GuessPars, self.sigma, args=(regressor,), 
+                               options={'maxiter':self.iterInfr,
+                                        'tolx': self.tolerance_value, 
+                                        'tolfun': self.tolerance_value})
+                
+#                res = cma.fmin(MLLWrap, GuessPars, self.sigma, args=(regressor,), 
+#                               options={'maxiter':self.iterInfr,
+#                                        'tolx': self.tolerance_value, 
+#                                        'tolfun': self.tolerance_value,
+#                                        'bounds': [0, None]})
+                minimum = res[0]
+                niter = res[4]
             
-            #plot curve with infered parameters
-            uInfr= s2b.solveODE(betacal, regressor)
-            sdInfr = self.noiseCal[0] + self.noiseCal[1]*uInfr[-1,:]
-            self.plotInfr(self.expTime, self.uObs, uInfr[-1,:], self.sdObs, sdInfr)
+            if self.liveInfBox.isChecked():
+                self.costPlot(0, True, niter)
+                self.parsPlot(0, True, niter)
+            
+            #compute and plot system with parameters found.
+            cellCal = s2b.solveODEpy(minimum[:-2], regressor)
+            noiseAB = minimum[-2:]
+            sdcellCal = noiseAB[0] + noiseAB[1]*cellCal[-1,:]
+            self.plotInfr(self.expTime, self.uObs, cellCal[-1,:], self.sdObs, sdcellCal)
+            print(minimum)
+            
+            #get parameters values
+            betacal = minimum[:-2]
+            self.noiseCal = minimum[-2:]
+            self.noiseCal = np.round(self.noiseCal, 5)
+            
+            #save parameter used in each iteration during estimation
+            if self.parAny.isChecked():
+                self.iterPars = np.array(allvecs)
 
         elif model == "Moment Based":
             #use KLD to fit moments and estimate parameters
-          
+            GuessPars = np.concatenate((beta0, self.errAB))
+
             #compute moments
             #determine system without input
-            if self.idxReaction == None:
+            if not self.radioEntrada.isChecked():
                 self.ODE2M, self.vars2M = s2b.simbMoments(self.SpStr,
                     self.valReac, self.valProd,self.nparStr)
                 
+                s2b.model2MDefiner(self.vars2M["nameVar"], self.ODE2M, 
+                               self.vars2M["pars"])
             #determine system with input
             else:
                 self.ODE2M, self.vars2M = s2b.simbMoments(self.SpStr,
                     self.valReac, self.valProd, self.nparStr, 
                     inputN=self.nameInp, indexU = self.idxReaction)
+                
+                s2b.model2MDefiner(self.vars2M["nameVar"][1:], self.ODE2M, 
+                               self.vars2M["pars"])
+            
             print(self.ODE2M)
             
             #moment initial conditions
-#            sp0 = np.concatenate((regressor["species0"], np.zeros(len(self.ODE2M) - len(regressor["species"]))))
             MomentSp0 = sym.lambdify([self.SpStr], self.vars2M['species'], "numpy")
             sp0M = np.array(MomentSp0(regressor["species0"]))
             print('Concentración inicial momentos', sp0M)
@@ -1202,112 +1540,534 @@ class mainWindow(QMainWindow):
                     "inpU": self.inpShock,
                     "Vtime": self.expTime,
                     "species0":sp0M,
-                    "meanCell":self.uObs,
-                    "sdCell":self.sdObs
+                    "uObs":self.uObs,
+                    "sdObs":self.sdObs
                     }
             regressor2.update(self.vars2M)
             
             #find second moment index of target species
-#            idx2M = list(map(str, regressor2["species"]))
-#            idx2M = idx2M.index(self.SpStr[-1] + '**2')
-#            print(idx2M)
-#            regressor2["idx2M"] = idx2M
             regressor2["idx2M"] = -1
             regressor2["errPars"] = self.errAB
             
             #KLD cost function  
             self.step = 0
-            def KLDmb(pars, data):
-            
-                uC, sdC = s2b.solve2Moment(pars, data["errPars"], data)
+            def KLDmomentsWrap(Allpars, regressor):
+                uM, sdM = s2b.solve2M(Allpars[:-2], Allpars[-2:], regressor)
+                
+                mcKLD = s2b.KLDmeasure(regressor["uObs"], regressor["sdObs"], uM, sdM)
+                print(mcKLD)
                 
                 self.step += 1
-                if self.step % 2:
-                    print(pars)
-                    self.plotInfr(self.expTime, self.uObs, uC, self.sdObs, sdC)
+                if not self.step % 20:
+                    #shows inferring status
+                    self.inferState()
+                    self.plotInfr(self.expTime, self.uObs, uM, self.sdObs, sdM)
+                    if self.liveInfBox.isChecked():
+                        self.costPlot(mcKLD)
+                        self.parsPlot(Allpars)
+                return mcKLD
+            
+            if self.algorithm == "Downhill Simplex":
+                minimum, allvecs = fmin(KLDmomentsWrap, GuessPars, 
+                                args=(regressor2,),
+                                xtol=self.tolerance_value, 
+                                ftol=self.tolerance_value,
+                                maxiter=self.iterInfr, retall=True)
+                niter = len(allvecs)
                 
-                uObs = data["meanCell"]
-                sdObs = data["sdCell"]
+#                res = minimize(KLDmomentsWrap, GuessPars, method='Nelder-Mead', 
+#                               tol=self.tolerance_value, args=(regressor2,), 
+#                               options={'maxiter':self.iterInfr,
+#                                        'return_all': True})
+#                minimum = res.x
+#                allvecs = res.allvecs
+            
+            elif self.algorithm == "CMA-ES":
                 
-                kld = s2b.kldmeasure(uObs, sdObs, uC, sdC)
-                ukld = np.mean(kld)
-                return ukld
+                res = cma.fmin(KLDmomentsWrap, GuessPars, self.sigma, 
+                               args=(regressor2,), 
+                               options={'maxiter':self.iterInfr,
+                                        'tolx': self.tolerance_value, 
+                                        'tolfun': self.tolerance_value})
+                
+#                res = cma.fmin(KLDmomentsWrap, GuessPars, self.sigma, 
+#                               args=(regressor2,), 
+#                               options={'maxiter':self.iterInfr,
+#                                        'tolx': self.tolerance_value, 
+#                                        'tolfun': self.tolerance_value,
+#                                        'bounds': [0, None]})
+                minimum = res[0]
+                niter = res[4]
             
-            #kinetic parameters estimations
-            betacal = fmin(KLDmb, x0 = beta0, args=(regressor2,), 
-                           maxiter=self.iterInfr, maxfun=self.iterInfr)
-            print(betacal)
-            regressor["betaCal"] = betacal
+            if self.liveInfBox.isChecked():
+                self.costPlot(0, True, niter)
+                self.parsPlot(0, True, niter)
             
-            #compute moments
-            momentCell = s2b.solveODE(betacal, regressor2)
-            regressor2["uC"] = momentCell[len(regressor["species"]) - 1,:]
-            regressor2["sd2C"] = momentCell[regressor2["idx2M"],:]
+            #get parameters inferenced
+            betacal  = minimum[:-2]
+            print(minimum)
+            self.noiseCal = minimum[-2:]
+            self.noiseCal = np.round(self.noiseCal, 5)
             
-            #cost function to minimize according to kld measure
+            #plots curve with infered parameters
+            uC, sdC = s2b.solve2M(betacal, self.noiseCal, regressor2)
+            self.plotInfr(self.expTime, self.uObs, uC, self.sdObs, sdC)
+            
+            #save parameter used in each iteration during estimation
+            if self.parAny.isChecked():
+                self.iterPars = np.array(allvecs)
+        
+        elif model == "Two-Stage":
+            #uses likelihood function to estimate population parameters
+            GuessPars = np.concatenate((beta0, self.errAB))
+            self.samplesC = self.sampleCells.value()
+            
+            #check sample amount to be bigger than one
+            if self.samplesC < 2 and len(Obs) < 2:
+                self.outODEs.append("Population is too small.")
+                QApplication.processEvents()                   
+                return
+            
+            #subpopulation
+#            rIdx = np.random.choice(Obs.shape[0], self.samplesC, replace= False)
+            rIdx = np.linspace(0, Obs.shape[0]-1, self.samplesC, dtype=int)
+            print(rIdx)
+            self.subPop = Obs[rIdx,:]
+            print(self.subPop.shape)
+            
+            #array to store single estimated parameters
+            popPars = np.zeros((self.samplesC, len(beta0)))
+            popA = np.zeros(self.samplesC)
+            popB = np.zeros(self.samplesC)
+            
+            #likelihood function
             self.step = 0
-            def KLDmbErr(errorP, data):
-                print(errorP)
-                uC = data["uC"]
-                sd2C = data["sd2C"] - uC**2
+            def MLLWrap(pars, regressor):
+                nPars = pars[-2:]
                 
-                #compute standar deviation of the second order moment from
-                #raw variance 
-                sdC = np.sqrt((1 + errorP[1]**2)*sd2C + (errorP[0] + errorP[1]*uC)**2)
+                expr = s2b.solveODEpy(pars[:-2], regressor)
+                uS = expr[-1,:]
                 
-                #observed data
-                uObs = data["meanCell"]
-                sdObs = data["sdCell"]
+                sdS = nPars[0] + nPars[1]*uS
                 
+                fSim = np.tile(uS, (len(regressor["Obs"]),1))
+                hSim = np.tile(sdS,(len(regressor["Obs"]),1))
+                
+                mll = s2b.MLLmeasure(regressor["Obs"], fSim, hSim)
+
+                #iterations count
                 self.step += 1
-                if self.step % 2:
-                    print(errorP)
-                    self.plotInfr(self.expTime, self.uObs, uC, self.sdObs, sdC)
-                
-                kld = s2b.kldmeasure(uObs, sdObs, uC, sdC)
-                ukld = np.mean(kld)
-                return ukld
+                if not self.step % 20:
+                    print(mll)
+                    #show inferring state
+                    self.inferState()
+                    self.plotInfr(self.expTime, 
+                                  self.subPop[self.iCell,:], 
+                                  uS, np.zeros(len(self.expTime)), sdS)
+                    if self.liveInfBox.isChecked():
+                        self.costPlot(mll)
+                        self.parsPlot(pars)
+                return mll
             
-            #compute parametes through kld
-            result = fmin(KLDmbErr, x0 = self.errAB, args=(regressor2,), 
-                          maxiter=self.iterInfr, maxfun=self.iterInfr)
-            self.noiseCal = result
+            #create an array to store parameters if it is required
+            if self.parAny.isChecked():
+                self.iterPars = np.zeros((self.iterInfr, len(GuessPars), self.samplesC))
+            
+            #individual estimation of cell population by two-stage
+            for self.iCell in range(self.samplesC):
+                #reset array of cost values
+                self.costArray = []
+                
+                #change sample to perform estimation
+                regressor["Obs"] = np.array([self.subPop[self.iCell,:]])
+                
+                #estimation function
+                if self.algorithm == "Downhill Simplex":
+                    minimum, allvecs = fmin(MLLWrap, GuessPars, args=(regressor,),
+                                xtol=self.tolerance_value, ftol=self.tolerance_value,
+                                maxiter=self.iterInfr, retall=True)
+                    niter = len(allvecs)
+                    
+#                    res = minimize(MLLWrap, GuessPars, method='Nelder-Mead', 
+#                               tol=self.tolerance_value, args=(regressor,), 
+#                               options={'maxiter':self.iterInfr,
+#                                        'return_all': True})
+#                    minimum = res.x
+#                    allvecs = res.allvecs
+                    print(minimum)
+                    
+                elif self.algorithm == "CMA-ES":
+                    
+                    res = cma.fmin(MLLWrap, GuessPars, self.sigma, 
+                                   args=(regressor,), 
+                                   options={'maxiter':self.iterInfr,
+                                            'tolx': self.tolerance_value, 
+                                            'tolfun': self.tolerance_value})
+                    
+#                    res = cma.fmin(MLLWrap, GuessPars, self.sigma, 
+#                                   args=(regressor,), 
+#                                   options={'maxiter':self.iterInfr,
+#                                            'tolx': self.tolerance_value, 
+#                                            'tolfun': self.tolerance_value,
+#                                            'bounds': [0, None]})
+                    minimum = res[0]
+                    niter = res[4]
+            
+                if self.liveInfBox.isChecked():
+                    self.costPlot(0, True, niter)
+                    self.parsPlot(0, True, niter)
+                
+                #save parameters use in each iteration during estimation of
+                #each cell
+                try:
+                    if self.parAny.isChecked():
+                        self.iterPars[:,:,self.iCell] = np.array(allvecs)
+                except:
+                    #sometimes the number of iterations required to estimate
+                    #each cell if diffenrent. Therefore, it will be no possible
+                    #to perform parameter analysis
+                    pass
+                    
+                #save estimated parameters
+                popPars[self.iCell,:] = minimum[:-2]
+                popA[self.iCell] = minimum[-2]
+                popB[self.iCell] = minimum[-1]
+            #end for iCell
+            
+            popAB = np.array([popA, popB])
+            
+            betacal, self.covPars, self.noiseCal = self.tsStats(np.absolute(popPars), 
+                                                                np.absolute(popAB))
+            self.covPars = np.round(self.covPars, 5)
+            print(betacal)
+            print(self.covPars)
             print(self.noiseCal)
             
-            #plot curve with infered parameters
-            uC, sdC = s2b.solve2Moment(betacal, self.noiseCal, regressor2)
-            self.plotInfr(self.expTime, self.uObs, uC, self.sdObs, sdC)
+            newMultiPars = np.exp(np.random.multivariate_normal(np.log(betacal), 
+                                                                self.covPars, 
+                                                                len(Obs)))
+            
+            ##############################
+            popExpr = np.zeros((len(Obs), len(self.expTime)))
+            ##############################
+            
+            for newPars in range(len(Obs)):
+                cellCal = s2b.solveODEpy(newMultiPars[newPars,:], regressor)
+                popExpr[newPars, :] = cellCal[-1,:]
+                
+                self.labeliter.setText("Simulating... " + str(newPars + 1) + '/' + str(len(Obs)))
+                QApplication.processEvents()
+            
+            ##############################################################3
+            #normal distribution
+            mu, sigma = 0, 1 #mean and standard deviation
+            ndis = np.random.normal(mu, sigma, (len(Obs),len(self.expTime)))
+            
+            #computes individual output with noise for each species
+            hvar = self.noiseCal[0] + self.noiseCal[1]*popExpr     
+            popExpr = popExpr + hvar*ndis
+            ############################################################
+            
+            ucellCal = np.mean(popExpr, axis=0)
+            sdcellCal = np.std(popExpr, axis=0)
+            
+            #a partir de los parametros estimados, simula un individuo, toma
+            #la media y aplica modelo de ruido para calcular varianza. Usa 
+            #ruido gausiano junto al modelo de ruido.
+            self.plotInfr(self.expTime, self.uObs, ucellCal, self.sdObs, 
+                          sdcellCal, True, self.subPop)
         
-        self.labeliter.setText("Inference Done!")
-        
-        return betacal
+            self.noiseCal = np.round(self.noiseCal, 5)
+        return np.round(betacal, 5)
     
-    #plot infered curve in each iteration
-    def plotInfr(self, expTime, uCell, InfrCell, sdCell=np.array([]), sdInfrCell=np.array([])):
+    def parAnalysis(self, iterPars, nparStr, ParsRef):
+        
+        #get the current date and time
+        now = datetime.now()
+        dt_string = now.strftime("%d_%m_%Y-%H_%M_%S")
+        
+        #create a folder to save plots
+        try:
+            os.makedirs('parameter_analysis/')
+        except:
+            pass
+        
+        #create a folder to save current analysis
+        os.makedirs('parameter_analysis/' + dt_string + '/')
+        
+        #save parameter in a .npy binary file
+        np.save('parameter_analysis/' + dt_string + '/iteration_parameters.npy', iterPars)
+        
+        #get dimenstions from parameter array
+        dimPars = iterPars.shape
+        x_axis = np.linspace(1, dimPars[0], dimPars[0])
+        
+        #create and save plot for each cell
+        if len(dimPars) == 3:
+            fig, axs = plt.subplots(dimPars[1], sharex=True)
+            for i in range(dimPars[2]):
+                #create figure for each cell
+                fig.suptitle('Cell ' + str(i+1))
+                #plot all parameter evolution
+                for j in range(dimPars[1]):
+                    axs[j].cla()
+                    axs[j].plot(x_axis, iterPars[:, j, i])
+                    axs[j].grid()
+                    axs[j].set(ylabel=nparStr[j])
+                plt.xlabel('Iterations')
+                
+                #save plots as png image
+                self.labeliter.setText("Saving... " + str(i + 1) + '/' + str(dimPars[2]))
+                QApplication.processEvents()
+                plt.savefig('parameter_analysis/' + dt_string + '/cell_' + str(i+1) + '.png')
+            #end for i
+        
+        #plot population parameters iterations
+        self.tempAxes = []
+        subIdx = str(dimPars[1]) + '1'
+        
+        if len(dimPars) == 2:
+            for k in range(dimPars[1]):
+                tempPar = iterPars[:, k]
+                tempAx = self.graphPlot6.canvas.figure.add_subplot(int(subIdx + str(k+1)))
+                self.tempAxes.append(tempAx)
+                tempAx.clear()
+                tempAx.plot(x_axis, tempPar, color='tab:red')
+                tempAx.plot(np.array([x_axis[0], x_axis[-1]]), 
+                   np.array([ParsRef[k], ParsRef[k]]), 'k')
+                tempAx.annotate(str(ParsRef[k]), xy=(x_axis[-1],ParsRef[k]), 
+                   fontsize=8)
+                tempAx.grid()
+                tempLab = str(nparStr[k])
+                tempAx.set_ylabel(tempLab, fontsize=8)
+                tempAx.tick_params(bottom=False, labelbottom=False)
+                if k == dimPars[1]-1:
+                    tempAx.tick_params(bottom=True, labelbottom=True)
+                tempAx.tick_params(axis='both', direction='in', labelsize=8)
+            
+            self.graphPlot6.canvas.axes.set_xlabel("Iterations", labelpad=16.0, 
+                                               fontsize=8)
+            self.graphPlot6.canvas.draw()
+        
+        else:    
+            for k in range(dimPars[1]):
+                tempPar = iterPars[:, k, :]
+                tempAx = self.graphPlot6.canvas.figure.add_subplot(int(subIdx + str(k+1)))
+                self.tempAxes.append(tempAx)
+                tempAx.clear()
+                tempAx.plot(x_axis, np.mean(tempPar, axis=1), color='tab:red')
+                tempAx.fill_between(np.linspace(1, dimPars[0], dimPars[0]), 
+                   np.mean(tempPar, axis=1) + np.std(tempPar, axis=1),
+                   np.mean(tempPar, axis=1) - np.std(tempPar, axis=1), 
+                   color='r', alpha = 0.1)
+                tempAx.plot(np.array([x_axis[0], x_axis[-1]]), 
+                   np.array([ParsRef[k], ParsRef[k]]), 'k')
+                tempAx.annotate(str(ParsRef[k]), xy=(x_axis[-1],ParsRef[k]), 
+                   fontsize=8)
+                tempAx.grid()
+                tempLab = str(nparStr[k])
+                tempAx.set_ylabel(tempLab, fontsize=8)
+                tempAx.tick_params(bottom=False, labelbottom=False)
+                if k == dimPars[1]-1:
+                    tempAx.tick_params(bottom=True, labelbottom=True)
+                tempAx.tick_params(axis='both', direction='in', labelsize=8)
+            
+            self.graphPlot6.canvas.axes.set_xlabel("Iterations", labelpad=16.0, 
+                                               fontsize=8)
+            self.graphPlot6.canvas.draw()
+
+        #create and save average parameter evolution
+        if len(dimPars) == 2:
+            fig, axs = plt.subplots(dimPars[1], sharex=True)
+            fig.suptitle("Population Parameter Iteration")
+                        
+            for k in range(dimPars[1]):
+                tempPar = iterPars[:, k]
+                axs[k].cla()
+                axs[k].plot(x_axis, tempPar, color='tab:red')
+                axs[k].plot(np.array([x_axis[0], x_axis[-1]]), 
+                   np.array([ParsRef[k], ParsRef[k]]), 'k')
+                axs[k].annotate(str(ParsRef[k]), xy=(x_axis[-1],ParsRef[k]), 
+                   fontsize=8)
+                axs[k].grid()
+                axs[k].set(ylabel=nparStr[k])
+            #end for k
+        else:
+            fig.suptitle("Population Parameter Iteration Average and SD")
+            
+            for k in range(dimPars[1]):
+                tempPar = iterPars[:, k, :]
+                axs[k].cla()
+                axs[k].plot(x_axis, np.mean(tempPar, axis=1), color='tab:red')
+                axs[k].fill_between(np.linspace(1, dimPars[0], dimPars[0]), 
+                   np.mean(tempPar, axis=1) + np.std(tempPar, axis=1),
+                   np.mean(tempPar, axis=1) - np.std(tempPar, axis=1), 
+                   color='r', alpha = 0.1)
+                axs[k].plot(np.array([x_axis[0], x_axis[-1]]), 
+                   np.array([ParsRef[k], ParsRef[k]]), 'k')
+                axs[k].annotate(str(ParsRef[k]), xy=(x_axis[-1],ParsRef[k]),
+                   fontsize=8)
+                axs[k].grid()
+                axs[k].set(ylabel=nparStr[k])
+        plt.xlabel('Iterations')
+        plt.savefig('parameter_analysis/' + dt_string + '/Population_Itearation_Parameter.png')
+        
+        #Open folder that contains the parameter analysis just created
+        nowPath = os.getcwd()
+        futPath = nowPath + '/parameter_analysis/' + dt_string
+        os.startfile(futPath)
+        
+    def tsStats(self, parsPop, ABpop):
+        #log population parameters
+        logPars = np.log(parsPop)
+
+        #mean of log parameters
+        mu = np.mean(logPars, axis=0)
+        
+        #covariance of log parameters
+        omega = np.cov(logPars.T)
+
+        #mean of noise parameter        
+        ABpars = np.mean(ABpop, axis=1)
+        
+        return np.exp(mu), omega, ABpars
+    
+    #lets know that inferring is still ongoing
+    def inferState(self):
+        if self.stateN == 0:
+            self.labeliter.setText("Inferring.")
+            
+            if self.modelInfr == "Two-Stage":
+                self.labeliter.setText("Inferring.   " + str(self.iCell + 1) + "/" + str(self.samplesC))
+            
+            QApplication.processEvents()
+            self.stateN = 1                   
+
+        elif self.stateN == 1:
+            self.labeliter.setText("Inferring..")
+            
+            if self.modelInfr == "Two-Stage":
+                self.labeliter.setText("Inferring..  " + str(self.iCell + 1) + "/" + str(self.samplesC))
+            
+            QApplication.processEvents()                   
+            self.stateN = 2
+            
+        elif self.stateN == 2:
+            self.labeliter.setText("Inferring...")
+            
+            if self.modelInfr == "Two-Stage":
+                self.labeliter.setText("Inferring... " + str(self.iCell + 1) + "/" + str(self.samplesC))
+            
+            QApplication.processEvents()         
+            self.stateN = 0
+    
+    def costPlot(self, costVal, enAxe = False, nAxe = 0):
+        if not enAxe == True:
+            self.costArray = self.costArray + [costVal]
+        else:
+            iterAxe = np.linspace(1, nAxe, len(self.costArray))
+        
+        self.graphPlot3.canvas.axes.clear()
+        
+        if not enAxe == True:
+            self.graphPlot3.canvas.axes.plot(self.costArray)
+        else:
+            self.graphPlot3.canvas.axes.plot(iterAxe, self.costArray)
+            self.graphPlot3.canvas.axes.tick_params(bottom=True, 
+                                                    labelbottom=True)
+            
+        self.graphPlot3.canvas.axes.set_ylabel("Function Value", fontsize=8)
+        self.graphPlot3.canvas.axes.grid()        
+        self.graphPlot3.canvas.draw()
+        QApplication.processEvents()       
+
+    def parsPlot(self, pars, enAxe = False, nAxe = 0):
+        self.clearSubplot()
+        
+        if not enAxe == True:
+            #attach new parameters
+            self.parsArray = self.parsArray + [pars]   
+        else:
+            iterAxe = np.linspace(1, nAxe, len(self.parsArray))
+        
+        #parameters names
+        tempName = self.nparStr + ['a', 'b']
+        
+        #temporal parameters numpy array
+        iterPars = np.array(self.parsArray)
+        dimPars = iterPars.shape
+        
+        self.tempAxes = []
+        subIdx = str(dimPars[1]) + '1'
+#        subIdx = '1' + str(dimPars[1])
+        
+        for k in range(dimPars[1]):
+            tempPar = iterPars[:, k]
+            tempAx = self.graphPlot6.canvas.figure.add_subplot(int(subIdx + str(k+1)))
+            self.tempAxes.append(tempAx)
+            tempAx.clear()
+            if not enAxe == True:
+                tempAx.plot(tempPar, color='tab:red')
+            else:
+                tempAx.plot(iterAxe, tempPar, color='tab:red')
+                
+            tempAx.grid()
+            tempLab = str(tempName[k])
+            tempAx.set_ylabel(tempLab, fontsize=8)
+            tempAx.tick_params(bottom=False, labelbottom=False)
+            tempAx.tick_params(axis='both', direction='in', labelsize=8)
+        
+        if enAxe == True:
+            tempAx.tick_params(bottom=True, labelbottom=True)
+        self.graphPlot6.canvas.axes.set_xlabel("Iterations", labelpad=16.0, 
+                                               fontsize=8)
+        self.graphPlot6.canvas.draw()
+        QApplication.processEvents()       
+    
+    #plots infered curve in each iteration
+    def plotInfr(self, expTime, uCell, InfrCell, sdCell=np.array([]), sdInfrCell=np.array([]), sampleP = False, sampleSub = np.array([])):
         self.graphPlot.canvas.axes.clear()
         self.graphPlot.canvas.axes.set_ylabel("Concentration", fontsize=8)
-        self.graphPlot.canvas.axes.plot(expTime, uCell, label="Observed Output")
-        self.graphPlot.canvas.axes.plot(expTime, InfrCell, label="Inferred Output")
-        self.graphPlot.canvas.axes.set_ylim(np.amin(uCell), np.amax(uCell))
-        self.graphPlot.canvas.axes.legend(loc='best')
-        self.graphPlot.canvas.axes.grid()
         
+        #plot observed 
+        if self.modelInfr == "Two-Stage":
+            self.graphPlot.canvas.axes.plot(expTime, uCell, label="Real")
+        else:
+            self.graphPlot.canvas.axes.plot(expTime, uCell, label="Observed")
+        self.graphPlot.canvas.axes.set_ylim(np.amin(uCell), np.amax(uCell))
+
         #plotting of output deviation
         if sdCell.size != 0:
             downL = uCell - sdCell
             upL = uCell + sdCell
             self.graphPlot.canvas.axes.plot(expTime, downL, 'b-')
             self.graphPlot.canvas.axes.plot(expTime, upL, 'b-')
-            self.graphPlot.canvas.axes.plot(expTime, InfrCell - sdInfrCell, 'y-')
-            self.graphPlot.canvas.axes.plot(expTime, InfrCell + sdInfrCell, 'y-')
             self.graphPlot.canvas.axes.set_ylim(np.amin(downL), np.amax(upL))
         
+        #show subpopulation used as sample
+        if sampleP == True:
+            uSample = np.mean(sampleSub, axis=0)
+            sdSample = np.std(sampleSub, axis=0)
+            
+            self.graphPlot.canvas.axes.plot(expTime, uSample, color='tab:green', label="Observed")
+            self.graphPlot.canvas.axes.plot(expTime, uSample + sdSample, 'g')
+            self.graphPlot.canvas.axes.plot(expTime, uSample - sdSample, 'g')
+        
+        #plot inferred population
+        self.graphPlot.canvas.axes.plot(expTime, InfrCell, color='orange', label="Inferred")
+        
+        #plotting of inferred deviation
+        if sdCell.size != 0:
+            self.graphPlot.canvas.axes.plot(expTime, InfrCell - sdInfrCell, color='tab:orange')
+            self.graphPlot.canvas.axes.plot(expTime, InfrCell + sdInfrCell, color='tab:orange')
+            
+        self.graphPlot.canvas.axes.grid()        
+        self.graphPlot.canvas.axes.legend(loc='best')            
         self.graphPlot.canvas.draw()
         QApplication.processEvents()                   
     
     #show infered information
     def showInfoInfr(self, betacal):
-        
         #show moments
         if self.modelInfr == "Moment Based":
             self.outODEs.append("\nDifferential Equations of Moments: ")
@@ -1321,21 +2081,59 @@ class mainWindow(QMainWindow):
         #show noise parameters
         if self.modelInfr != "Mean Curve Fit":
             self.outODEs.append("\na = " + str(self.noiseCal[0]) + ', b = ' + str(self.noiseCal[1]))
+            
+        #show log covariance matrix
+        if self.modelInfr == "Two-Stage":
+            self.covPars = np.round(self.covPars, 5)
+            self.outODEs.append("Log-Covariance Matrix:")
+            for i in range(len(self.covPars)):
+                    temp = self.covPars[i].tolist()
+                    temp = list(map(str, temp))
+                    self.outODEs.append('\t|  ' + ', '.join(temp) + '  |')
+        QApplication.processEvents()
     
-    #function to change inference model
+    #function to change inference model and enable specific parameters 
     def changeModel(self):
         if self.modelBox.currentText() == "Mean Curve Fit":
             self.A0Box.setEnabled(False)
             self.B0Box.setEnabled(False)
             self.iterBox.setEnabled(False)
+            self.spinTolerance.setEnabled(False)
+            self.parAny.setEnabled(False)
+            self.AlgoBox.setEnabled(False)
         else:
             self.A0Box.setEnabled(True)
             self.B0Box.setEnabled(True)
             self.iterBox.setEnabled(True)
+            self.spinTolerance.setEnabled(True)
+            self.parAny.setEnabled(True)
+            self.AlgoBox.setEnabled(True)
+            
+        if  self.modelBox.currentText() == "Two-Stage":
+            self.sampleCells.setEnabled(True)
+        else:
+            self.sampleCells.setEnabled(False)
+    
+    def changeAlgorithm(self):
+        self.algorithm = self.AlgoBox.currentText()
+        
+        if self.algorithm == "CMA-ES":
+            self.parAny.setEnabled(False)
+            self.parAny.setChecked(False)
+        else: 
+            self.parAny.setEnabled(True)
+    
+    #show error message box
+    def msgBox(self, message):
+        msg = QMessageBox()
+        msg.setWindowTitle("Error!!!")
+        msg.setText(message)
+        msg.setIcon(QMessageBox.Critical)
+        msg.exec_()
 
     #start and end events of window execution
     def showEvent(self, event):
-        self.outODEs.setText("Welcome to GenExpSim!")
+        self.outODEs.setText("Welcome to SysBioSim!")
     
     def closeEvent(self, event):
         pushClose = QMessageBox.question(self, "Exit",

@@ -7,9 +7,7 @@ Created on Thu Aug 13 16:49:03 2020
 
 #from PyQt5.QtWidgets import*
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
-
 from matplotlib.backends.backend_qt5agg import FigureCanvas
-
 from matplotlib.figure import Figure
 
     
