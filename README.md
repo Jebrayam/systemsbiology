@@ -1,5 +1,5 @@
 # Systems Biology Simulator (SysBioSim)
-This project was developed in order to help people interested in learn about modeling of gene expression in cell populations. GenExpSim is an informatic tool (desktop application)
+This project was developed in order to help people interested in learn about modeling of gene expression in cell populations. SysBioSim is an informatic tool (desktop application)
 created to learn or teach some topics about Systems Biology (Gene Expression). 
 
 ## Introduction
